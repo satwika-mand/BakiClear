@@ -1,0 +1,47 @@
+[
+  {
+    "invoice_id": "INV-1001",
+    "customer_id": "CUST-001",
+    "amount_due": 500000.0,
+    "currency": "INR",
+    "due_date": "2026-08-16",
+    "days_overdue": 20,
+    "description": "Q3 fabric supply — batch 44"
+  },
+  {
+    "invoice_id": "INV-1002",
+    "customer_id": "CUST-002",
+    "amount_due": 45000.0,
+    "currency": "INR",
+    "due_date": "2026-08-26",
+    "days_overdue": 10,
+    "description": "Seasonal inventory restock"
+  },
+  {
+    "invoice_id": "INV-2001",
+    "customer_id": "CUST-003",
+    "amount_due": 220000.0,
+    "currency": "INR",
+    "due_date": "2026-07-07",
+    "days_overdue": 60,
+    "description": "Freight services — June contract"
+  },
+  {
+    "invoice_id": "INV-3001",
+    "customer_id": "CUST-004",
+    "amount_due": 8000.0,
+    "currency": "INR",
+    "due_date": "2026-08-29",
+    "days_overdue": 7,
+    "description": "Annual subscription renewal"
+  },
+  {
+    "invoice_id": "INV-4001",
+    "customer_id": "CUST-005",
+    "amount_due": 1200000.0,
+    "currency": "INR",
+    "due_date": "2026-08-01",
+    "days_overdue": 35,
+    "description": "Component order #7742"
+  }
+]

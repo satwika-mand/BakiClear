@@ -1,0 +1,34 @@
+{
+  "CUST-001": [
+    {"invoice_id": "INV-0901", "due_date": "2026-02-15", "paid_date": "2026-02-14", "amount": 480000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0912", "due_date": "2026-03-20", "paid_date": "2026-03-19", "amount": 510000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0930", "due_date": "2026-05-01", "paid_date": "2026-05-01", "amount": 495000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0951", "due_date": "2026-06-10", "paid_date": "2026-06-12", "amount": 470000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0977", "due_date": "2026-07-15", "paid_date": "2026-07-14", "amount": 505000.0, "was_disputed": false, "broken_promise": false}
+  ],
+  "CUST-002": [
+    {"invoice_id": "INV-0810", "due_date": "2026-03-01", "paid_date": "2026-03-01", "amount": 40000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0833", "due_date": "2026-04-15", "paid_date": "2026-04-20", "amount": 38000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0860", "due_date": "2026-06-01", "paid_date": "2026-06-01", "amount": 42000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-0888", "due_date": "2026-07-10", "paid_date": "2026-07-11", "amount": 39500.0, "was_disputed": false, "broken_promise": false}
+  ],
+  "CUST-003": [
+    {"invoice_id": "INV-1801", "due_date": "2026-01-20", "paid_date": "2026-02-25", "amount": 195000.0, "was_disputed": true, "broken_promise": true},
+    {"invoice_id": "INV-1822", "due_date": "2026-03-05", "paid_date": "2026-04-10", "amount": 210000.0, "was_disputed": false, "broken_promise": true},
+    {"invoice_id": "INV-1850", "due_date": "2026-04-18", "paid_date": "2026-05-02", "amount": 175000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-1877", "due_date": "2026-05-25", "paid_date": null, "amount": 205000.0, "was_disputed": true, "broken_promise": false},
+    {"invoice_id": "INV-1899", "due_date": "2026-06-30", "paid_date": "2026-07-20", "amount": 190000.0, "was_disputed": false, "broken_promise": false}
+  ],
+  "CUST-004": [
+    {"invoice_id": "INV-4501", "due_date": "2026-04-10", "paid_date": "2026-04-10", "amount": 7500.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-4520", "due_date": "2026-06-15", "paid_date": "2026-06-16", "amount": 8000.0, "was_disputed": false, "broken_promise": false}
+  ],
+  "CUST-005": [
+    {"invoice_id": "INV-7701", "due_date": "2026-01-05", "paid_date": "2026-01-04", "amount": 1150000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-7722", "due_date": "2026-02-12", "paid_date": "2026-02-12", "amount": 1180000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-7745", "due_date": "2026-03-20", "paid_date": "2026-03-18", "amount": 1220000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-7770", "due_date": "2026-05-05", "paid_date": "2026-05-06", "amount": 1190000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-7795", "due_date": "2026-06-20", "paid_date": "2026-06-19", "amount": 1210000.0, "was_disputed": false, "broken_promise": false},
+    {"invoice_id": "INV-7820", "due_date": "2026-07-25", "paid_date": "2026-07-25", "amount": 1175000.0, "was_disputed": false, "broken_promise": false}
+  ]
+}

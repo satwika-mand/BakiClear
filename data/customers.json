@@ -1,0 +1,52 @@
+[
+  {
+    "customer_id": "CUST-001",
+    "name": "Meridian Textiles Pvt Ltd",
+    "segment": "enterprise",
+    "tier": "gold",
+    "customer_since": "2019-03-14",
+    "lifetime_value": 4250000.0,
+    "contact_email": "accounts@meridiantextiles.example",
+    "contact_phone": "+91-9800011122"
+  },
+  {
+    "customer_id": "CUST-002",
+    "name": "Kavya Fashion Retail",
+    "segment": "small_business",
+    "tier": "standard",
+    "customer_since": "2023-06-01",
+    "lifetime_value": 180000.0,
+    "contact_email": "kavya.retail@example.com",
+    "contact_phone": "+91-9812233445"
+  },
+  {
+    "customer_id": "CUST-003",
+    "name": "Orion Logistics",
+    "segment": "mid_market",
+    "tier": "watch_list",
+    "customer_since": "2021-11-20",
+    "lifetime_value": 950000.0,
+    "contact_email": "billing@orionlogistics.example",
+    "contact_phone": "+91-9845566778"
+  },
+  {
+    "customer_id": "CUST-004",
+    "name": "Priya Nair",
+    "segment": "individual",
+    "tier": "standard",
+    "customer_since": "2025-01-10",
+    "lifetime_value": 25000.0,
+    "contact_email": "priya.nair@example.com",
+    "contact_phone": "+91-9876543210"
+  },
+  {
+    "customer_id": "CUST-005",
+    "name": "Blue Ridge Components",
+    "segment": "enterprise",
+    "tier": "gold",
+    "customer_since": "2017-08-05",
+    "lifetime_value": 6800000.0,
+    "contact_email": "finance@blueridge.example",
+    "contact_phone": "+91-9822334455"
+  }
+]

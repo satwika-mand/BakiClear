@@ -1,0 +1,26 @@
+{
+  "policy_id": "default-2026",
+  "rules_by_tier": {
+    "gold": {
+      "tier": "gold",
+      "max_extension_days": 15,
+      "max_discount_pct": 5,
+      "requires_human_approval_if_disputed": true,
+      "requires_human_approval_if_broken_promises_gte": 2
+    },
+    "standard": {
+      "tier": "standard",
+      "max_extension_days": 7,
+      "max_discount_pct": 2,
+      "requires_human_approval_if_disputed": true,
+      "requires_human_approval_if_broken_promises_gte": 2
+    },
+    "watch_list": {
+      "tier": "watch_list",
+      "max_extension_days": 0,
+      "max_discount_pct": 0,
+      "requires_human_approval_if_disputed": true,
+      "requires_human_approval_if_broken_promises_gte": 1
+    }
+  }
+}
