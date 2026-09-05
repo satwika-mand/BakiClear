@@ -12,9 +12,15 @@ from ai.schemas.enums import NegotiationIntent
 
 
 class NegotiationTurn(BaseModel):
-    """One message in the conversation, in order."""
+    """One message in the conversation, in order.
 
-    speaker: Literal["customer", "ai"]
+    Includes "system" alongside "customer"/"ai" to match the backend's
+    negotiation_turns.speaker contract (docs/api_contracts.md) — without it,
+    any backend-authored system turn (e.g. an automated note) would fail
+    validation here and crash the Negotiation screen.
+    """
+
+    speaker: Literal["customer", "ai", "system"]
     message: str
     timestamp: datetime
 

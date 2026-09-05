@@ -48,6 +48,15 @@ def _get_assessment(invoice_id: str) -> Assessment:
     return cache[invoice_id]
 
 
+@st.cache_data(ttl=15, show_spinner=False)
+def _fetch_queue_rows() -> list[dict]:
+    """Streamlit reruns the ENTIRE script on every interaction anywhere in the
+    app — every tab's code, not just the one visible — so without this cache
+    a 300-invoice, multi-join backend query would refire on every click,
+    everywhere. A short TTL keeps the queue fresh without that tax."""
+    return get_context_provider().get_collection_queue()
+
+
 def render_queue() -> None:
     st.subheader("📋 Overdue Collection Queue")
     st.caption("Every overdue invoice, ranked by deterministic priority. No LLM call occurs "
@@ -55,7 +64,7 @@ def render_queue() -> None:
 
     provider = get_context_provider()
     if settings.context_source == "api":
-        rows = provider.get_collection_queue()
+        rows = _fetch_queue_rows()
         for row in rows:
             invoice = row["invoice"]
             customer = row["customer"]
@@ -153,17 +162,36 @@ def render_negotiation(a: Assessment) -> None:
     st.subheader("💬 Negotiation")
     invoice_id = a.invoice.invoice_id
     provider = get_context_provider()
-    session_id = f"SESSION-{invoice_id}"
+
     if settings.context_source == "api":
-        # The API is the source of truth for the transcript. Starting a session
-        # also marks the invoice as in negotiation on the backend.
-        session = provider.request("POST", f"/api/negotiate/{invoice_id}")
-        session_id = session["session_id"]
+        # Streamlit reruns every tab's code on every interaction, regardless of
+        # which tab is visually active — so starting the backend session here
+        # unconditionally would silently flip the invoice to "in_negotiation"
+        # the instant *any* invoice is selected, even if the user never opens
+        # this tab. Require an explicit click so the side effect matches
+        # actual intent, not incidental script execution.
+        started = st.session_state.setdefault("negotiation_started", {})
+        if not started.get(invoice_id):
+            st.info(
+                "Starting a negotiation marks this invoice as 'in negotiation' on the backend."
+            )
+            if st.button("Start Negotiation", key=f"start_neg_{invoice_id}"):
+                started[invoice_id] = True
+                st.rerun()
+            return
+
+        session_cache = st.session_state.setdefault("negotiation_sessions", {})
+        if invoice_id not in session_cache:
+            session_cache[invoice_id] = provider.request("POST", f"/api/negotiate/{invoice_id}")["session_id"]
+        session_id = session_cache[invoice_id]
+
+        transcript = provider.request("GET", f"/api/negotiations/{session_id}")
         conversation = [
             NegotiationTurn(speaker=turn["speaker"], message=turn["message"], timestamp=turn["timestamp"])
-            for turn in session["turns"]
+            for turn in transcript["turns"]
         ]
     else:
+        session_id = f"SESSION-{invoice_id}"
         conversation = st.session_state["conversations"].setdefault(invoice_id, [])
 
     if not conversation:
@@ -182,6 +210,9 @@ def render_negotiation(a: Assessment) -> None:
             )
 
     for turn in conversation:
+        if turn.speaker == "system":
+            st.caption(f"🔧 system: {turn.message}")
+            continue
         with st.chat_message("assistant" if turn.speaker == "ai" else "user"):
             st.write(turn.message)
 

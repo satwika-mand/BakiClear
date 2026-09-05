@@ -215,11 +215,22 @@ class BackendActionExecutor:
 
     @staticmethod
     def _audit_entry(row: dict) -> AuditLogEntry:
-        verdict = {
-            "approved": GuardrailVerdict.ALLOW,
-            "rejected": GuardrailVerdict.REJECT,
-            "escalated": GuardrailVerdict.HUMAN_APPROVAL,
-        }[row["decision"]]
+        """The backend only stores "approved"/"rejected"/"escalated" — MODIFY
+        collapses into "approved" there. Recover the distinction the same way
+        the backend's own schema intends it: requested_value != approved_value
+        on an "approved" row means the guardrail clamped the ask, not allowed
+        it outright."""
+        if row["decision"] == "approved":
+            verdict = (
+                GuardrailVerdict.MODIFY
+                if row.get("requested_value") != row.get("approved_value")
+                else GuardrailVerdict.ALLOW
+            )
+        else:
+            verdict = {
+                "rejected": GuardrailVerdict.REJECT,
+                "escalated": GuardrailVerdict.HUMAN_APPROVAL,
+            }[row["decision"]]
         proposal = ActionProposal(
             invoice_id=row["invoice_id"], customer_id="database", action_type=ActionType.RECORD_PROMISE,
             source_agent="policy_engine", rationale=row["reason"],
@@ -239,6 +250,9 @@ class BackendActionExecutor:
         promises = self._request("GET", "/api/promises")
         resolved = [p for p in promises if p["status"] in {"kept", "broken"}]
         kept = sum(p["status"] == "kept" for p in resolved)
+        modifications = sum(
+            1 for entry in self.list_audit_log() if entry.decision.verdict == GuardrailVerdict.MODIFY
+        )
         return MetricsSummary(
             total_invoices_processed=summary["total_invoices_count"],
             total_amount_due=summary["total_overdue_amount"],
@@ -247,7 +261,7 @@ class BackendActionExecutor:
             promise_keeping_rate_pct=round(kept / len(resolved) * 100, 1) if resolved else 0.0,
             human_escalations=summary["human_escalations_count"],
             guardrail_rejections=summary["guardrail_blocks_count"],
-            guardrail_modifications=0,
+            guardrail_modifications=modifications,
         )
 
 
