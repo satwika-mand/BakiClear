@@ -225,3 +225,35 @@ def test_razorpay_mock_adapter(client):
     assert "id" in data
     assert "short_url" in data
     assert data["is_mock"] is True
+
+
+def test_checkout_verification_is_idempotent(client):
+    """A verified mock checkout settles exactly once on repeated callbacks."""
+    invoice = client.get("/api/invoices?status=overdue&limit=1").json()[0]
+    promise = client.post(
+        "/api/promises",
+        json={
+            "invoice_id": invoice["invoice_id"],
+            "customer_id": invoice["customer_id"],
+            "amount": invoice["amount"],
+            "promised_date": "2026-09-20",
+        },
+    )
+    assert promise.status_code == 201
+
+    order = client.post(f"/api/negotiations/{invoice['invoice_id']}/create-order")
+    assert order.status_code == 200
+    payload = {
+        "razorpay_payment_id": "pay_mock_idempotency_1",
+        "razorpay_order_id": order.json()["order_id"],
+        "razorpay_signature": "mock_signature",
+        "idempotency_key": "payment-verification-test-1",
+    }
+    first = client.post(f"/api/negotiations/{invoice['invoice_id']}/verify-payment", json=payload)
+    second = client.post(f"/api/negotiations/{invoice['invoice_id']}/verify-payment", json=payload)
+
+    assert first.status_code == 200
+    assert first.json()["idempotent"] is False
+    assert second.status_code == 200
+    assert second.json()["idempotent"] is True
+    assert client.get(f"/api/negotiations/{invoice['invoice_id']}/status").json()["invoice_status"] == "paid"

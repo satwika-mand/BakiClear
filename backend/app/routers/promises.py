@@ -10,8 +10,11 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models.customer import Customer
 from backend.app.models.invoice import Invoice
+from backend.app.models.policy import PolicyConfig
 from backend.app.models.promise import PromiseToPay
 from backend.app.schemas.promise import PromiseCreate, PromiseMarkPaid, PromiseResponse
+from backend.app.services.guardrail import policy_for, validate_commitment
+from backend.app.services.handoff import create_human_task
 
 router = APIRouter(prefix="/api/promises", tags=["Promises To Pay"])
 
@@ -55,6 +58,35 @@ def create_promise(promise_in: PromiseCreate, db: Session = Depends(get_db)):
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Customer '{promise_in.customer_id}' not found.",
         )
+
+    stored_policy = db.get(PolicyConfig, cust.segment)
+    bounds = (
+        {
+            "max_discount_percent": stored_policy.max_discount_percent,
+            "max_extension_days": stored_policy.max_extension_days,
+        }
+        if stored_policy
+        else policy_for(cust.segment)
+    )
+    verdict = validate_commitment(
+        {
+            "amount": promise_in.amount,
+            "invoice_amount": inv.amount,
+            "promised_date": promise_in.promised_date,
+            "days_overdue": inv.days_overdue,
+            "segment": cust.segment,
+        },
+        bounds,
+    )
+    if verdict["route_to_human"]:
+        create_human_task(
+            db, invoice_id=inv.invoice_id, customer_id=cust.customer_id,
+            reason=verdict["reason"], priority="urgent",
+        )
+        # A full-value payment commitment is safe to record; the task prevents
+        # any accompanying concession from being autonomous.
+    if not verdict["allowed"] and not verdict["route_to_human"]:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=verdict["reason"])
 
     promise_id = f"PRM_{uuid.uuid4().hex[:8].upper()}"
     promise = PromiseToPay(

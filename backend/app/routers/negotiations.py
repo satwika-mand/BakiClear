@@ -11,6 +11,7 @@ from backend.app.database import get_db
 from backend.app.models.invoice import Invoice
 from backend.app.models.negotiation import NegotiationSession, NegotiationTurn
 from backend.app.schemas.negotiation import SessionResponse, TurnCreate, TurnResponse
+from backend.app.services.handoff import create_human_task
 
 router = APIRouter(tags=["Negotiations"])
 
@@ -104,6 +105,14 @@ def append_negotiation_turn(
     )
     db.add(turn)
     session.updated_at = datetime.now()
+    if turn_in.speaker == "customer" and turn_in.intent in {"dispute", "raise_dispute"}:
+        create_human_task(
+            db,
+            invoice_id=session.invoice_id,
+            customer_id=session.customer_id,
+            reason="Customer raised a dispute in the negotiation conversation.",
+            priority="urgent",
+        )
     db.commit()
     db.refresh(turn)
     return turn

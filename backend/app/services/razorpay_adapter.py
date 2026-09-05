@@ -13,11 +13,34 @@ class RazorpayAdapter:
         self,
         key_id: str | None = None,
         key_secret: str | None = None,
-        use_mock: bool = True,
+        use_mock: bool | None = None,
     ):
         self.key_id = key_id or settings.razorpay_key_id
         self.key_secret = key_secret or settings.razorpay_key_secret
-        self.use_mock = use_mock or settings.razorpay_use_mock or not (self.key_id and self.key_secret)
+        self.use_mock = settings.razorpay_use_mock if use_mock is None else use_mock
+        self.use_mock = self.use_mock or not (self.key_id and self.key_secret)
+
+    def create_order(self, *, amount_paise: int, receipt: str) -> dict[str, Any]:
+        if amount_paise <= 0:
+            raise ValueError("Order amount must be positive.")
+        if self.use_mock:
+            return {"id": f"order_mock_{uuid.uuid4().hex[:12]}", "amount": amount_paise, "currency": "INR", "status": "created"}
+        import razorpay
+        return razorpay.Client(auth=(self.key_id, self.key_secret)).order.create(
+            data={"amount": amount_paise, "currency": "INR", "receipt": receipt}
+        )
+
+    def verify_signature(self, *, order_id: str, payment_id: str, signature: str) -> bool:
+        if self.use_mock:
+            return signature == "mock_signature" and order_id.startswith("order_mock_")
+        import razorpay
+        try:
+            razorpay.Client(auth=(self.key_id, self.key_secret)).utility.verify_payment_signature({
+                "razorpay_order_id": order_id, "razorpay_payment_id": payment_id, "razorpay_signature": signature,
+            })
+            return True
+        except razorpay.errors.SignatureVerificationError:
+            return False
 
     def create_payment_link(
         self,

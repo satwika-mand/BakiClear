@@ -19,10 +19,15 @@ from ai.agents.message import draft_message
 from ai.agents.risk_engine import compute_payment_behavior
 from ai.config import settings
 from ai.evaluate import (
+<<<<<<< HEAD
     compute_action_log_metrics,
     fetch_recovery_metrics,
     run_guardrail_boundary_test,
     run_message_safety_redteam,
+=======
+    calculate_guardrail_metrics,
+    calculate_recovery_metrics,
+>>>>>>> b564885 (backend new logics)
 )
 from ai.orchestration import get_context_provider
 from ai.orchestration.pipeline import Assessment, assess_invoice, negotiate_turn, quick_risk
@@ -233,8 +238,14 @@ def render_negotiation(a: Assessment) -> None:
                 "POST", f"/api/negotiations/{session_id}/turn",
                 json={"speaker": "customer", "message": message, "intent": "customer_message"},
             )
-        with st.spinner("AI negotiating, then policy engine validating..."):
-            outcome = negotiate_turn(a, session_id=session_id, conversation=conversation, customer_message=message)
+        try:
+            with st.spinner("AI negotiating, then policy engine validating..."):
+                outcome = negotiate_turn(
+                    a, session_id=session_id, conversation=conversation, customer_message=message
+                )
+        except RuntimeError as exc:
+            st.error(f"The negotiation could not be saved: {exc}")
+            return
         ai_turn = NegotiationTurn(speaker="ai", message=outcome.result.proposed_next_message, timestamp=datetime.now())
         conversation.append(ai_turn)
         if settings.context_source == "api":
@@ -355,12 +366,42 @@ def render_automated_inbox() -> None:
     st.subheader("📬 Automated Inbox")
     st.caption("Scheduled & sent reminder messages. Click to open full conversation.")
 
+<<<<<<< HEAD
     entries = _cached_inbox_entries()
     if not entries:
         st.info("No overdue invoices.")
         return
 
     for customer, inv, message in entries:
+=======
+    provider = get_context_provider()
+    if settings.context_source == "api":
+        messages = provider.request("GET", "/api/messages")[:10]
+        if not messages:
+            st.info("No automated messages have been sent yet. The scheduler runs every 30 seconds.")
+            return
+        for message in messages:
+            cols = st.columns([2, 3, 3, 1])
+            cols[0].markdown("**BakiClear Collections**")
+            cols[1].markdown(f"`{message['invoice_id']}`")
+            cols[2].markdown(f"{message['tier'].replace('_', ' ').title()} · {message['channel']}")
+            if cols[3].button("Review →", key=f"inbox_{message['message_id']}"):
+                st.session_state["selected_invoice_id"] = message["invoice_id"]
+                st.rerun()
+            st.caption(message["body"])
+            st.divider()
+        return
+
+    invoices = provider.list_overdue_invoices()[:10]  # Show first 10
+
+    if not invoices:
+        st.info("No overdue invoices.")
+        return
+
+    for inv in invoices:
+        customer = provider.get_customer(inv.customer_id)
+
+>>>>>>> b564885 (backend new logics)
         cols = st.columns([2, 3, 3, 1])
         cols[0].markdown(f"**{customer.name}**")
         cols[1].markdown(f"`{inv.invoice_id}`")
@@ -402,7 +443,35 @@ def render_human_collection_queue() -> None:
     st.subheader("👤 Human Collection Queue")
     st.caption("Cases escalated by the guardrail. Click 'Review' to see full conversation & context.")
 
+<<<<<<< HEAD
     escalated = _cached_escalated_rows()
+=======
+    provider = get_context_provider()
+    if settings.context_source == "api":
+        tasks = provider.request("GET", "/api/human-tasks")
+        if not tasks:
+            st.success("✅ No escalations pending.")
+            return
+        st.warning(f"⚠️ {len(tasks)} case(s) pending human review")
+        for task in tasks[:10]:
+            with st.container(border=True):
+                c1, c2, c3 = st.columns([2, 2, 3])
+                c1.markdown(f"**{task['customer_id']}**")
+                c2.markdown(f"`{task['invoice_id']}`")
+                c3.markdown(f"**{task['priority'].upper()}** · {task['reason']}")
+                if st.button("Review →", key=f"human_{task['task_id']}"):
+                    st.session_state["selected_invoice_id"] = task["invoice_id"]
+                    st.rerun()
+        return
+
+    invoices = provider.list_overdue_invoices()
+
+    escalated = []
+    for inv in invoices:
+        if inv.days_overdue >= 15:  # Simulate escalation criteria
+            customer = provider.get_customer(inv.customer_id)
+            escalated.append((customer, inv))
+>>>>>>> b564885 (backend new logics)
 
     if not escalated:
         st.success("✅ No escalations pending.")

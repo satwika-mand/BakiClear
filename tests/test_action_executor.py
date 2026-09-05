@@ -109,6 +109,30 @@ def test_human_approval_queues_for_review_creates_no_promise(
     assert len(executor.list_pending_approvals()) == 1
 
 
+def test_non_commitment_action_does_not_create_a_promise(
+    executor: MockActionExecutor, invoice: Invoice
+) -> None:
+    proposal = _proposal(action_type=ActionType.SCHEDULE_FOLLOW_UP)
+    decision = GuardrailDecision(
+        verdict=GuardrailVerdict.ALLOW, original_proposal=proposal, reason="send a reminder"
+    )
+
+    assert executor.execute(decision, invoice) is None
+    assert executor.list_promises() == []
+
+
+def test_invalid_commitment_amount_does_not_create_a_promise(
+    executor: MockActionExecutor, invoice: Invoice
+) -> None:
+    proposal = _proposal(proposed_amount=invoice.amount_due + 1)
+    decision = GuardrailDecision(
+        verdict=GuardrailVerdict.ALLOW, original_proposal=proposal, reason="test invalid amount"
+    )
+
+    assert executor.execute(decision, invoice) is None
+    assert executor.list_promises() == []
+
+
 def test_mark_promise_status_updates_in_place(
     executor: MockActionExecutor, invoice: Invoice
 ) -> None:

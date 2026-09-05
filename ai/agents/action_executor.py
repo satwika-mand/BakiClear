@@ -67,9 +67,13 @@ class MockActionExecutor:
             return None
 
         effective = decision.modified_proposal or decision.original_proposal
+        if effective.action_type != ActionType.RECORD_PROMISE:
+            return None
         amount = effective.proposed_amount
         if amount is None:
             amount = invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
+        if amount <= 0 or amount > invoice.amount_due:
+            return None
         # The extension is measured from today, not the (already-passed) original
         # due date — "10 more days" means 10 days from now for an overdue invoice.
         due_date = max(invoice.due_date, date.today()) + timedelta(
@@ -199,6 +203,21 @@ class BackendActionExecutor:
             if decision.verdict in {GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY}
             else None
         )
+        amount: float | None = None
+        commitment_is_valid = True
+        action_reason = decision.reason
+        if (
+            decision.verdict in {GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY}
+            and effective.action_type == ActionType.RECORD_PROMISE
+        ):
+            amount = effective.proposed_amount
+            if amount is None:
+                amount = invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
+            commitment_is_valid = 0 < amount <= invoice.amount_due
+            if not commitment_is_valid:
+                decision_map[decision.verdict] = "rejected"
+                approved_value = None
+                action_reason = "Backend rejected an invalid payment commitment amount."
         self._request(
             "POST",
             "/api/actions",
@@ -206,7 +225,7 @@ class BackendActionExecutor:
                 "invoice_id": invoice.invoice_id,
                 "action_type": effective.action_type.value,
                 "decision": decision_map[decision.verdict],
-                "reason": decision.reason,
+                "reason": action_reason,
                 "actor": "policy_engine",
                 "requested_value": requested_value,
                 "approved_value": approved_value,
@@ -216,16 +235,18 @@ class BackendActionExecutor:
                     requested_value,
                     approved_value,
                     decision_map[decision.verdict],
-                    decision.reason,
+                    action_reason,
                 ),
             },
         )
-        if decision.verdict in {GuardrailVerdict.REJECT, GuardrailVerdict.HUMAN_APPROVAL}:
+        if (
+            decision.verdict in {GuardrailVerdict.REJECT, GuardrailVerdict.HUMAN_APPROVAL}
+            or effective.action_type != ActionType.RECORD_PROMISE
+            or not commitment_is_valid
+        ):
             return None
 
-        amount = effective.proposed_amount
-        if amount is None:
-            amount = invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
+        assert amount is not None
         promised_date = max(invoice.due_date, date.today()) + timedelta(
             days=effective.proposed_extension_days
         )

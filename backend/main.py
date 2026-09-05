@@ -4,6 +4,7 @@ Architecture principle:
 LLM proposes. Policy decides. Backend executes. Database records.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -16,16 +17,21 @@ from sqlalchemy.orm import Session
 import backend.app.models as _models  # noqa: F401
 from backend.app.config import settings
 from backend.app.database import Base, engine, get_db
+from backend.app.database_upgrade import upgrade_schema
 from backend.app.models.invoice import Invoice
 from backend.app.routers import (
     actions,
     customers,
+    human_tasks,
     invoices,
+    messages,
     metrics,
     negotiations,
+    payments,
     policy,
     promises,
 )
+from backend.app.services.messaging_scheduler import scheduler_loop
 from backend.app.services.razorpay_adapter import razorpay_adapter
 
 
@@ -33,7 +39,14 @@ from backend.app.services.razorpay_adapter import razorpay_adapter
 async def lifespan(app: FastAPI):
     """Ensure database schema is created on application startup."""
     Base.metadata.create_all(bind=engine)
-    yield
+    upgrade_schema(engine)
+    stop = asyncio.Event()
+    task = asyncio.create_task(scheduler_loop(stop))
+    try:
+        yield
+    finally:
+        stop.set()
+        await task
 
 
 app = FastAPI(
@@ -57,9 +70,12 @@ app.include_router(invoices.router)
 app.include_router(customers.router)
 app.include_router(negotiations.router)
 app.include_router(promises.router)
+app.include_router(payments.router)
 app.include_router(policy.router)
 app.include_router(actions.router)
 app.include_router(metrics.router)
+app.include_router(messages.router)
+app.include_router(human_tasks.router)
 
 
 # Health Check

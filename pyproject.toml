@@ -27,6 +27,7 @@ backend = [
     "uvicorn[standard]>=0.32",
     "sqlalchemy>=2.0",
     "psycopg[binary]>=3.2",
+    "razorpay>=1.4",
 ]
 
 [tool.ruff]
