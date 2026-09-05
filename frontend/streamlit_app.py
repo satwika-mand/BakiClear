@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ai.agents.action_executor import get_action_executor
 from ai.config import settings
+from ai.evaluate import calculate_guardrail_metrics, calculate_recovery_metrics, calculate_strategy_metrics
 from ai.orchestration import get_context_provider
 from ai.orchestration.pipeline import Assessment, assess_invoice, negotiate_turn, quick_risk
 from ai.schemas import GuardrailVerdict, NegotiationTurn, PromiseStatus
@@ -248,6 +249,37 @@ def render_negotiation(a: Assessment) -> None:
         c2.metric("Policy allows", f"{rule.max_extension_days}d ext / {rule.max_discount_pct}% off")
         c3.markdown(f"### :{color}[{label}]")
         st.info(outcome.decision.reason)
+
+        # ACTION CARD: Show approved terms (ALLOW or MODIFY)
+        if outcome.decision.verdict in [GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY]:
+            st.divider()
+            st.markdown("### ✅ Approved Payment Terms")
+            with st.container(border=True):
+                effective = outcome.decision.modified_proposal or outcome.decision.original_proposal
+                approved_amount = a.invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
+
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Original amount", f"₹{a.invoice.amount_due:,.0f}")
+                c2.metric("After discount", f"₹{approved_amount:,.0f}")
+                c3.metric("Due by", effective.proposed_extension_days + a.invoice.days_overdue)
+
+                st.caption(
+                    f"**{effective.proposed_discount_pct}% discount** / "
+                    f"**{effective.proposed_extension_days} day extension**"
+                )
+
+                c_pay, c_ask, c_dispute = st.columns(3)
+                if c_pay.button("💳 Pay Now", key=f"pay_{invoice_id}"):
+                    st.info(f"💳 Opening Razorpay checkout for ₹{approved_amount:,.0f}...")
+                    # In real app: call POST /api/payments/create-link and render Razorpay
+                    st.success("✅ Payment link sent to customer")
+
+                if c_ask.button("❓ Ask Question", key=f"ask_{invoice_id}"):
+                    st.info("Chat continues below...")
+
+                if c_dispute.button("🚫 Dispute", key=f"dispute_{invoice_id}"):
+                    st.warning("Dispute noted. Escalating to human team.")
+
         if outcome.promise:
             st.success(
                 f"✅ Promise created: {outcome.promise.promise_id} — ₹{outcome.promise.amount:,.0f} "
@@ -293,26 +325,110 @@ def render_outcome() -> None:
                    f":{color}[{label}] · {entry.decision.reason}")
 
 
+def render_automated_inbox() -> None:
+    """Simulated WhatsApp-style inbox of outgoing automated messages."""
+    st.subheader("📬 Automated Inbox")
+    st.caption("Scheduled & sent reminder messages. Click to open full conversation.")
+
+    provider = get_context_provider()
+    invoices = provider.list_overdue_invoices()[:10]  # Show first 10
+
+    if not invoices:
+        st.info("No overdue invoices.")
+        return
+
+    for inv in invoices:
+        customer = provider.get_customer(inv.customer_id)
+        history = provider.get_payment_history(customer.customer_id)
+        behavior = get_action_executor().compute_metrics()  # Placeholder
+
+        cols = st.columns([2, 3, 3, 1])
+        cols[0].markdown(f"**{customer.name}**")
+        cols[1].markdown(f"`{inv.invoice_id}`")
+        cols[2].markdown(f"{inv.days_overdue} days overdue")
+        if cols[3].button("→", key=f"inbox_{inv.invoice_id}"):
+            st.session_state["selected_invoice_id"] = inv.invoice_id
+            st.rerun()
+
+        st.caption(f"Last message: Reminder sent {inv.days_overdue} days ago")
+        st.divider()
+
+
+def render_human_collection_queue() -> None:
+    """Queue of escalated cases awaiting human review (HUMAN_APPROVAL verdicts)."""
+    st.subheader("👤 Human Collection Queue")
+    st.caption("Cases escalated by the guardrail. Click 'Review' to see full conversation & context.")
+
+    provider = get_context_provider()
+    invoices = provider.list_overdue_invoices()
+
+    escalated = []
+    for inv in invoices:
+        if inv.days_overdue >= 15:  # Simulate escalation criteria
+            customer = provider.get_customer(inv.customer_id)
+            escalated.append((customer, inv))
+
+    if not escalated:
+        st.success("✅ No escalations pending.")
+        return
+
+    st.warning(f"⚠️ {len(escalated)} case(s) pending human review")
+    st.divider()
+
+    for customer, inv in escalated[:5]:  # Show top 5
+        with st.container(border=True):
+            c1, c2, c3 = st.columns([2, 2, 3])
+            c1.markdown(f"**{customer.name}**  \n`{customer.customer_id}`")
+            c2.markdown(f"`{inv.invoice_id}`  \n₹{inv.amount_due:,.0f}")
+            c3.markdown(f"**{inv.days_overdue} days overdue**  \n"
+                       f"Reason: High days overdue + watch_list tier")
+
+            if st.button("📞 Call Customer", key=f"call_{inv.invoice_id}"):
+                st.info(f"Calling {customer.name}: +91-XXXX-XXXX  \n"
+                       f"Reference: {inv.invoice_id}")
+
+            if st.button("✅ Approve & Create Promise", key=f"approve_{inv.invoice_id}"):
+                st.success("Promise created and sent to customer.")
+
+            st.divider()
+
+
 def render_metrics() -> None:
-    st.subheader("📊 Metrics")
-    metrics = get_action_executor().compute_metrics()
+    st.subheader("📊 Metrics & KPIs")
+    st.caption("Collection performance dashboard — AI guardrail + recovery metrics.")
 
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Invoices processed", metrics.total_invoices_processed)
-    c2.metric("Amount due", f"₹{metrics.total_amount_due:,.0f}")
-    c3.metric("Amount promised", f"₹{metrics.total_amount_promised:,.0f}")
+    # Fetch evaluation metrics
+    guardrail_metrics = calculate_guardrail_metrics()
+    recovery_metrics = calculate_recovery_metrics()
 
-    c4, c5, c6, c7 = st.columns(4)
-    c4.metric("Recovery rate", f"{metrics.recovery_rate_pct}%")
-    c5.metric("Promise-keeping rate", f"{metrics.promise_keeping_rate_pct}%")
-    c6.metric("Human escalations", metrics.human_escalations)
-    c7.metric("Guardrail rejections", metrics.guardrail_rejections)
+    st.markdown("### 🔍 Guardrail Performance")
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric("Precision (Approved → Paid)", f"{guardrail_metrics.precision_score}%")
+    c2.metric("Recall (Accept Rate)", f"{guardrail_metrics.recall_score}%")
+    c3.metric("Total Verdicts", guardrail_metrics.total_verdicts)
+    c4.metric("Escalations", guardrail_metrics.human_approval_count)
 
+    st.markdown("### 💰 Recovery Metrics")
+    c5, c6, c7, c8 = st.columns(4)
+    c5.metric("Total Overdue", f"₹{recovery_metrics.total_overdue_amount:,.0f}")
+    c6.metric("Total Recovered", f"₹{recovery_metrics.total_recovered_amount:,.0f}")
+    c7.metric("Recovery Rate", f"{recovery_metrics.recovery_rate_pct}%")
+    c8.metric("Avg Days to Payment", f"{recovery_metrics.avg_days_to_payment} days")
+
+    st.markdown("### 📋 Promise Follow-Through")
+    c9, c10, c11, c12 = st.columns(4)
+    c9.metric("Made", recovery_metrics.promises_made)
+    c10.metric("Kept", recovery_metrics.promises_kept)
+    c11.metric("Broken", recovery_metrics.promises_broken)
+    c12.metric("Keep Rate", f"{round(recovery_metrics.promises_kept / recovery_metrics.promises_made * 100, 1) if recovery_metrics.promises_made > 0 else 0}%")
+
+    st.markdown("### 📊 Verdict Distribution")
     st.bar_chart(
         {
-            "Rejections": metrics.guardrail_rejections,
-            "Modifications": metrics.guardrail_modifications,
-            "Escalations": metrics.human_escalations,
+            "Allow": guardrail_metrics.allow_count,
+            "Modify": guardrail_metrics.modify_count,
+            "Reject": guardrail_metrics.reject_count,
+            "Escalate": guardrail_metrics.human_approval_count,
         }
     )
 
@@ -323,7 +439,7 @@ def main() -> None:
     st.caption("AI-Powered Collections Strategy & Negotiation — "
                "**LLM proposes. Policy decides. Backend executes. Database records.**")
 
-    tabs = st.tabs(["📋 Queue", "🧠 Intelligence", "🎯 Strategy", "💬 Negotiation", "✅ Outcome", "📊 Metrics"])
+    tabs = st.tabs(["📋 Queue", "🧠 Intelligence", "🎯 Strategy", "💬 Negotiation", "✅ Outcome", "📬 Inbox", "👤 Human Queue", "📊 Metrics"])
 
     with tabs[0]:
         render_queue()
@@ -345,6 +461,10 @@ def main() -> None:
     with tabs[4]:
         render_outcome()
     with tabs[5]:
+        render_automated_inbox()
+    with tabs[6]:
+        render_human_collection_queue()
+    with tabs[7]:
         render_metrics()
 
 

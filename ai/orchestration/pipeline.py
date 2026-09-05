@@ -13,6 +13,7 @@ from dataclasses import dataclass
 
 from ai.agents.action_executor import get_action_executor
 from ai.agents.customer_intelligence import compute_intelligence
+from ai.agents.message import draft_message
 from ai.agents.negotiation import extract_negotiation_result, to_action_proposal
 from ai.agents.risk_engine import (
     compute_payment_behavior,
@@ -28,7 +29,9 @@ from ai.schemas import (
     CustomerFacts,
     CustomerIntelligence,
     CustomerProfile,
+    CustomerTier,
     GuardrailDecision,
+    GuardrailVerdict,
     Invoice,
     MerchantPolicy,
     NegotiationResult,
@@ -134,6 +137,26 @@ def assess_invoice(invoice_id: str) -> Assessment:
         strategy=strategy,
         policy=policy,
     )
+
+
+def should_escalate_to_human(assessment: Assessment, decision: GuardrailDecision) -> bool:
+    """Determine if this case must be escalated to a human agent.
+
+    Rules:
+      - 15+ days overdue (entrenched)
+      - watch_list tier (inherently risky)
+      - open dispute (requires human judgment)
+      - guardrail verdict is HUMAN_APPROVAL (explicit)
+    """
+    if assessment.invoice.days_overdue >= 15:
+        return True
+    if assessment.customer.tier == CustomerTier.WATCH_LIST:
+        return True
+    if assessment.facts.has_open_dispute:
+        return True
+    if decision.verdict == GuardrailVerdict.HUMAN_APPROVAL:
+        return True
+    return False
 
 
 def negotiate_turn(
