@@ -228,19 +228,31 @@ def render_negotiation(a: Assessment) -> None:
     if message:
         customer_turn = NegotiationTurn(speaker="customer", message=message, timestamp=datetime.now())
         conversation.append(customer_turn)
-        if settings.context_source == "api":
-            provider.request(
-                "POST", f"/api/negotiations/{session_id}/turn",
-                json={"speaker": "customer", "message": message, "intent": "customer_message"},
-            )
         try:
             with st.spinner("AI negotiating, then policy engine validating..."):
                 outcome = negotiate_turn(
                     a, session_id=session_id, conversation=conversation, customer_message=message
                 )
         except RuntimeError as exc:
+            # Persist the customer's message even on extraction failure — the
+            # conversation shouldn't silently vanish just because Gemini/the
+            # guardrail call failed. Intent is unknown in this path.
+            if settings.context_source == "api":
+                provider.request(
+                    "POST", f"/api/negotiations/{session_id}/turn",
+                    json={"speaker": "customer", "message": message, "intent": "unclear"},
+                )
             st.error(f"The negotiation could not be saved: {exc}")
             return
+        if settings.context_source == "api":
+            # Post with the REAL extracted intent (e.g. "disputes_amount"),
+            # not a hardcoded placeholder — the backend's dispute-escalation
+            # trigger in negotiations.py matches on this field, so a fake
+            # constant here would make that trigger permanently dead.
+            provider.request(
+                "POST", f"/api/negotiations/{session_id}/turn",
+                json={"speaker": "customer", "message": message, "intent": outcome.result.intent.value},
+            )
         ai_turn = NegotiationTurn(speaker="ai", message=outcome.result.proposed_next_message, timestamp=datetime.now())
         conversation.append(ai_turn)
         if settings.context_source == "api":

@@ -28,9 +28,7 @@ from ai.schemas import (
     CustomerFacts,
     CustomerIntelligence,
     CustomerProfile,
-    CustomerTier,
     GuardrailDecision,
-    GuardrailVerdict,
     Invoice,
     MerchantPolicy,
     NegotiationResult,
@@ -136,24 +134,6 @@ def assess_invoice(invoice_id: str) -> Assessment:
         strategy=strategy,
         policy=policy,
     )
-
-
-def should_escalate_to_human(assessment: Assessment, decision: GuardrailDecision) -> bool:
-    """Determine if this case must be escalated to a human agent.
-
-    Rules:
-      - 15+ days overdue (entrenched)
-      - watch_list tier (inherently risky)
-      - open dispute (requires human judgment)
-      - guardrail verdict is HUMAN_APPROVAL (explicit)
-    """
-    if assessment.invoice.days_overdue >= 15:
-        return True
-    if assessment.customer.tier == CustomerTier.WATCH_LIST:
-        return True
-    if assessment.facts.has_open_dispute:
-        return True
-    return decision.verdict == GuardrailVerdict.HUMAN_APPROVAL
 
 
 def negotiate_turn(

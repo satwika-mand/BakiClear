@@ -1,0 +1,252 @@
+{
+  "generated_at": "2026-09-05T18:02:15.664230",
+  "n_cases": 41,
+  "overall": {
+    "fully_correct": 36,
+    "fully_correct_pct": 87.8,
+    "wilson_95_ci": [
+      74.5,
+      94.7
+    ],
+    "intent_accuracy_pct": 97.6,
+    "discount_accuracy_pct": 92.7,
+    "extension_accuracy_pct": 97.6,
+    "errors": 0
+  },
+  "by_cohort": {
+    "willing_to_pay": {
+      "n": 5,
+      "correct": 5,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        56.6,
+        100.0
+      ]
+    },
+    "requests_extension": {
+      "n": 5,
+      "correct": 5,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        56.6,
+        100.0
+      ]
+    },
+    "requests_discount": {
+      "n": 5,
+      "correct": 5,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        56.6,
+        100.0
+      ]
+    },
+    "disputes_amount": {
+      "n": 5,
+      "correct": 5,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        56.6,
+        100.0
+      ]
+    },
+    "refuses": {
+      "n": 5,
+      "correct": 5,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        56.6,
+        100.0
+      ]
+    },
+    "unclear": {
+      "n": 5,
+      "correct": 4,
+      "accuracy_pct": 80.0,
+      "wilson_95_ci": [
+        37.6,
+        96.4
+      ]
+    },
+    "mixed": {
+      "n": 3,
+      "correct": 3,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        43.8,
+        100.0
+      ]
+    },
+    "adversarial": {
+      "n": 8,
+      "correct": 4,
+      "accuracy_pct": 50.0,
+      "wilson_95_ci": [
+        21.5,
+        78.5
+      ]
+    },
+    "sarcasm": {
+      "n": 1,
+      "correct": 0,
+      "accuracy_pct": 0.0,
+      "wilson_95_ci": [
+        0.0,
+        79.3
+      ]
+    },
+    "already_paid": {
+      "n": 1,
+      "correct": 1,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        20.7,
+        100.0
+      ]
+    },
+    "too_short": {
+      "n": 1,
+      "correct": 1,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        20.7,
+        100.0
+      ]
+    },
+    "vague_extension": {
+      "n": 1,
+      "correct": 0,
+      "accuracy_pct": 0.0,
+      "wilson_95_ci": [
+        0.0,
+        79.3
+      ]
+    },
+    "nonsensical": {
+      "n": 1,
+      "correct": 0,
+      "accuracy_pct": 0.0,
+      "wilson_95_ci": [
+        0.0,
+        79.3
+      ]
+    },
+    "unrealistic_ask": {
+      "n": 1,
+      "correct": 1,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        20.7,
+        100.0
+      ]
+    },
+    "partial_refusal": {
+      "n": 1,
+      "correct": 0,
+      "accuracy_pct": 0.0,
+      "wilson_95_ci": [
+        0.0,
+        79.3
+      ]
+    },
+    "hostile": {
+      "n": 1,
+      "correct": 1,
+      "accuracy_pct": 100.0,
+      "wilson_95_ci": [
+        20.7,
+        100.0
+      ]
+    }
+  },
+  "misses": [
+    {
+      "message": "I don't understand this charge.",
+      "expected_intent": "unclear",
+      "acceptable_intents": null,
+      "actual_intent": "disputes_amount",
+      "expected_discount_pct": 0.0,
+      "actual_discount_pct": 0.0,
+      "expected_extension_days": 0,
+      "actual_extension_days": 0,
+      "tags": [
+        "unclear"
+      ],
+      "error": null
+    },
+    {
+      "message": "Yeah sure, take your 50% and get lost.",
+      "expected_intent": "unclear",
+      "acceptable_intents": [
+        "unclear",
+        "refuses",
+        "requests_discount"
+      ],
+      "actual_intent": "requests_discount",
+      "expected_discount_pct": 0.0,
+      "actual_discount_pct": 50.0,
+      "expected_extension_days": 0,
+      "actual_extension_days": 0,
+      "tags": [
+        "adversarial",
+        "sarcasm"
+      ],
+      "error": null
+    },
+    {
+      "message": "Fine, whatever, just give me some time.",
+      "expected_intent": "requests_extension",
+      "acceptable_intents": [
+        "requests_extension",
+        "unclear"
+      ],
+      "actual_intent": "requests_extension",
+      "expected_discount_pct": 0.0,
+      "actual_discount_pct": 0.0,
+      "expected_extension_days": 0,
+      "actual_extension_days": 10,
+      "tags": [
+        "adversarial",
+        "vague_extension"
+      ],
+      "error": null
+    },
+    {
+      "message": "I want -10% discount and negative days please.",
+      "expected_intent": "unclear",
+      "acceptable_intents": [
+        "unclear",
+        "requests_discount"
+      ],
+      "actual_intent": "requests_discount",
+      "expected_discount_pct": 0.0,
+      "actual_discount_pct": 10.0,
+      "expected_extension_days": 0,
+      "actual_extension_days": 0,
+      "tags": [
+        "adversarial",
+        "nonsensical"
+      ],
+      "error": null
+    },
+    {
+      "message": "I'll pay half now and half never.",
+      "expected_intent": "refuses",
+      "acceptable_intents": [
+        "refuses",
+        "willing_to_pay",
+        "unclear"
+      ],
+      "actual_intent": "refuses",
+      "expected_discount_pct": 0.0,
+      "actual_discount_pct": 50.0,
+      "expected_extension_days": 0,
+      "actual_extension_days": 0,
+      "tags": [
+        "adversarial",
+        "partial_refusal"
+      ],
+      "error": null
+    }
+  ]
+}
