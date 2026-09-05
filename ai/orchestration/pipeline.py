@@ -87,6 +87,33 @@ def quick_risk(invoice_id: str) -> QuickRisk:
 def assess_invoice(invoice_id: str) -> Assessment:
     provider = get_context_provider()
     invoice = provider.get_invoice(invoice_id)
+
+    # BackendContextProvider exposes get_precomputed_assessment (one call to
+    # the backend's own /context endpoint) so we defer to its numbers instead
+    # of running an independent risk formula against the same facts —  two
+    # systems scoring the same customer differently is a real trust problem,
+    # not just a style choice. MockContextProvider has no such backend to
+    # defer to, so it falls through to local computation below.
+    get_precomputed = getattr(provider, "get_precomputed_assessment", None)
+    if get_precomputed is not None:
+        pre = get_precomputed(invoice.customer_id, invoice_id)
+        history = provider.get_payment_history(invoice.customer_id)
+        # Backend's context payload gives aggregate dispute/broken-promise
+        # counts, not "is a dispute still open" — the one fact the guardrail
+        # actually branches on — so this still needs the raw ledger.
+        facts = derive_customer_facts(pre.customer, history)
+        strategy = propose_strategy(pre.customer, invoice, pre.intelligence, pre.behavior, pre.risk)
+        return Assessment(
+            customer=pre.customer,
+            invoice=invoice,
+            intelligence=pre.intelligence,
+            behavior=pre.behavior,
+            facts=facts,
+            risk=pre.risk,
+            strategy=strategy,
+            policy=pre.policy,
+        )
+
     customer = provider.get_customer(invoice.customer_id)
     history = provider.get_payment_history(customer.customer_id)
     policy = provider.get_policy()

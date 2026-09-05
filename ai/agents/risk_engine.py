@@ -17,6 +17,17 @@ from ai.schemas import (
 )
 
 
+def summarize_payment_behavior(on_time_pct: float, broken_promise_count: int) -> str:
+    """Shared wording so mock-mode (computed here) and api-mode (backend's own
+    numbers, adapted in ai/orchestration/backend_provider.py) describe a
+    customer identically given the same underlying facts."""
+    if broken_promise_count >= 2 or on_time_pct < 25:
+        return "Unreliable payer — frequent delays, disputes, or broken promises."
+    if on_time_pct >= 75:
+        return "Reliable payer — pays on time or with minor delays."
+    return "Mixed payment history — some delays, no major red flags."
+
+
 def compute_payment_behavior(customer_id: str, history: list[PaymentRecord]) -> PaymentBehavior:
     """All numeric fields computed directly from PaymentRecord history.
 
@@ -41,13 +52,7 @@ def compute_payment_behavior(customer_id: str, history: list[PaymentRecord]) -> 
     broken_promise_count = sum(1 for r in history if r.broken_promise)
     on_time_pct = round(on_time_count / len(history) * 100, 1)
     avg_delay = round(sum(delays) / len(delays), 1) if delays else 0.0
-
-    if broken_promise_count >= 2 or on_time_pct < 25:
-        summary = "Unreliable payer — frequent delays, disputes, or broken promises."
-    elif on_time_pct >= 75:
-        summary = "Reliable payer — pays on time or with minor delays."
-    else:
-        summary = "Mixed payment history — some delays, no major red flags."
+    summary = summarize_payment_behavior(on_time_pct, broken_promise_count)
 
     return PaymentBehavior(
         customer_id=customer_id,

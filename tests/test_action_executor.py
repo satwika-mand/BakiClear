@@ -2,7 +2,7 @@ from datetime import date, timedelta
 
 import pytest
 
-from ai.agents.action_executor import ActionExecutor, MockActionExecutor
+from ai.agents.action_executor import ActionExecutor, MockActionExecutor, _build_idempotency_key
 from ai.schemas import (
     ActionProposal,
     ActionType,
@@ -147,3 +147,42 @@ def test_metrics_reflect_mixed_outcomes(executor: MockActionExecutor, invoice: I
     assert metrics.guardrail_rejections == 1
     assert metrics.human_escalations == 1
     assert metrics.total_amount_promised == invoice.amount_due
+
+
+class TestIdempotencyKey:
+    """A random suffix (the original bug) would make every submission look
+    "new" to the backend, defeating idempotency entirely. These lock in that
+    the key is deterministic, and that it distinguishes genuinely different
+    outcomes rather than over-deduping by date alone."""
+
+    def _key(self, **overrides):
+        base = {
+            "invoice_id": "INV-1",
+            "action_type": "record_promise",
+            "requested_value": "5.0% discount / 0d extension",
+            "approved_value": "3.0% discount / 0d extension",
+            "decision": "approved",
+            "reason": "clamped to policy max",
+            "as_of": date(2026, 9, 5),
+        }
+        base.update(overrides)
+        return _build_idempotency_key(**base)
+
+    def test_identical_inputs_produce_identical_key(self):
+        assert self._key() == self._key()
+
+    def test_different_reason_produces_different_key(self):
+        assert self._key(reason="different reason entirely") != self._key()
+
+    def test_different_requested_value_produces_different_key(self):
+        """A second, larger discount ask on the same invoice/action_type/day
+        must NOT collide with an earlier smaller ask — a pure date-based key
+        would silently drop this second real event."""
+        assert self._key(requested_value="15.0% discount / 0d extension") != self._key()
+
+    def test_different_day_produces_different_key(self):
+        assert self._key(as_of=date(2026, 9, 6)) != self._key()
+
+    def test_key_contains_invoice_and_action_type_for_readability(self):
+        key = self._key()
+        assert key.startswith("INV-1:record_promise:2026-09-05:")

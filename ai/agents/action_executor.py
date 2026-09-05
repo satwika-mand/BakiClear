@@ -9,6 +9,7 @@ MockActionExecutor directly, so Phase 5 (real POST /api/promises calls) is a
 new class, not a rewrite.
 """
 
+import hashlib
 import uuid
 from datetime import date, datetime, timedelta
 from functools import lru_cache
@@ -127,6 +128,35 @@ class MockActionExecutor:
         )
 
 
+def _build_idempotency_key(
+    invoice_id: str,
+    action_type: str,
+    requested_value: str,
+    approved_value: str | None,
+    decision: str,
+    reason: str,
+    as_of: date | None = None,
+) -> str:
+    """Deterministic, not random — a random suffix (uuid4) would defeat the
+    whole point of idempotency, since every call would look "new" to the
+    backend even when it's a duplicate submission from a Streamlit rerun or
+    double-click.
+
+    A pure date-based key (as docs/api_contracts.md's example shows) has its
+    own failure mode: a customer legitimately asking for a bigger discount an
+    hour after being rejected for a smaller one, same invoice/action_type/day,
+    would collide and the second real event would be silently dropped. So this
+    scopes by day (matching the documented contract) AND by a fingerprint of
+    what was actually decided — two genuinely different negotiation outcomes
+    on the same day get different keys; the same outcome submitted twice
+    collapses into one, which is exactly the intended behavior.
+    """
+    day = (as_of or date.today()).isoformat()
+    fingerprint_source = f"{requested_value}|{approved_value}|{decision}|{reason}"
+    fingerprint = hashlib.sha1(fingerprint_source.encode()).hexdigest()[:10]
+    return f"{invoice_id}:{action_type}:{day}:{fingerprint}"
+
+
 class BackendActionExecutor:
     """Persists all negotiation outcomes through the FastAPI backend."""
 
@@ -163,6 +193,12 @@ class BackendActionExecutor:
             GuardrailVerdict.HUMAN_APPROVAL: "escalated",
         }
         requested = decision.original_proposal
+        requested_value = f"{requested.proposed_discount_pct}% discount / {requested.proposed_extension_days}d extension"
+        approved_value = (
+            f"{effective.proposed_discount_pct}% discount / {effective.proposed_extension_days}d extension"
+            if decision.verdict in {GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY}
+            else None
+        )
         self._request(
             "POST",
             "/api/actions",
@@ -172,13 +208,16 @@ class BackendActionExecutor:
                 "decision": decision_map[decision.verdict],
                 "reason": decision.reason,
                 "actor": "policy_engine",
-                "requested_value": f"{requested.proposed_discount_pct}% discount / {requested.proposed_extension_days}d extension",
-                "approved_value": (
-                    f"{effective.proposed_discount_pct}% discount / {effective.proposed_extension_days}d extension"
-                    if decision.verdict in {GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY}
-                    else None
+                "requested_value": requested_value,
+                "approved_value": approved_value,
+                "idempotency_key": _build_idempotency_key(
+                    invoice.invoice_id,
+                    effective.action_type.value,
+                    requested_value,
+                    approved_value,
+                    decision_map[decision.verdict],
+                    decision.reason,
                 ),
-                "idempotency_key": f"{invoice.invoice_id}:{effective.action_type.value}:{uuid.uuid4().hex}",
             },
         )
         if decision.verdict in {GuardrailVerdict.REJECT, GuardrailVerdict.HUMAN_APPROVAL}:
