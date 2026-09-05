@@ -1,6 +1,7 @@
 """Public contracts for the whole AI pipeline. Import from here, not from the
 individual submodules, e.g. `from ai.schemas import CollectionStrategy`."""
 
+from ai.schemas.audit import AuditLogEntry
 from ai.schemas.customer import CustomerIntelligence, CustomerProfile
 from ai.schemas.enums import (
     ActionType,
@@ -16,6 +17,7 @@ from ai.schemas.enums import (
 )
 from ai.schemas.guardrail import ActionProposal, CustomerFacts, GuardrailDecision
 from ai.schemas.invoice import Invoice
+from ai.schemas.metrics import MetricsSummary
 from ai.schemas.negotiation import NegotiationResult, NegotiationTurn
 from ai.schemas.payment_history import PaymentBehavior, PaymentRecord
 from ai.schemas.policy import MerchantPolicy, TierPolicyRule
@@ -26,6 +28,7 @@ from ai.schemas.strategy import CollectionStrategy
 __all__ = [
     "ActionProposal",
     "ActionType",
+    "AuditLogEntry",
     "CollectionChannel",
     "CollectionStrategy",
     "CollectionTone",
@@ -38,6 +41,7 @@ __all__ = [
     "GuardrailVerdict",
     "Invoice",
     "MerchantPolicy",
+    "MetricsSummary",
     "NegotiationIntent",
     "NegotiationResult",
     "NegotiationTurn",
