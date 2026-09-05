@@ -1,0 +1,36 @@
+[project]
+name = "bakiclear"
+version = "0.1.0"
+description = "AI-Powered Collections Strategy & Negotiation"
+requires-python = ">=3.11"
+
+# AI + frontend deps (Person 2). Backend deps live in the [backend] group
+# so Person 1 can add to their group without touching ours.
+dependencies = [
+    "google-genai>=1.0.0",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "python-dotenv>=1.0",
+    "httpx>=0.27",
+    "streamlit>=1.40",
+    "pandas>=2.2",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+# Person 1 owns this group.
+backend = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0",
+    "psycopg[binary]>=3.2",
+]
+
+[tool.ruff]
+line-length = 100
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
