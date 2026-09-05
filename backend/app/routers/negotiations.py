@@ -105,7 +105,7 @@ def append_negotiation_turn(
     )
     db.add(turn)
     session.updated_at = datetime.now()
-    if turn_in.speaker == "customer" and turn_in.intent in {"dispute", "raise_dispute"}:
+    if turn_in.speaker == "customer" and turn_in.intent == "disputes_amount":
         create_human_task(
             db,
             invoice_id=session.invoice_id,

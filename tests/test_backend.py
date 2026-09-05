@@ -199,6 +199,24 @@ def test_negotiation_session_and_turns(client):
     assert any(t["message"] == "Can I pay in two installments?" for t in turns)
 
 
+def test_customer_dispute_creates_human_task(client):
+    invoice = client.get("/api/invoices?status=overdue&limit=1").json()[0]
+    session = client.post(f"/api/negotiate/{invoice['invoice_id']}").json()
+
+    response = client.post(
+        f"/api/negotiations/{session['session_id']}/turn",
+        json={
+            "speaker": "customer",
+            "message": "I dispute this amount.",
+            "intent": "disputes_amount",
+        },
+    )
+
+    assert response.status_code == 201
+    tasks = client.get("/api/human-tasks").json()
+    assert any(task["invoice_id"] == invoice["invoice_id"] for task in tasks)
+
+
 def test_metrics_summary(client):
     """Verify aggregated metrics summary calculation."""
     response = client.get("/api/metrics/summary")
