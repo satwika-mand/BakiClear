@@ -51,7 +51,7 @@ class MockActionExecutor:
         self._invoices_seen: dict[str, float] = {}  # invoice_id -> amount_due, for recovery_rate
 
     def execute(self, decision: GuardrailDecision, invoice: Invoice) -> PromiseToPay | None:
-        self._audit_log.append(AuditLogEntry(timestamp=datetime.now(), decision=decision))  # noqa: DTZ005
+        self._audit_log.append(AuditLogEntry(timestamp=datetime.now(), decision=decision))
         self._invoices_seen[invoice.invoice_id] = invoice.amount_due
 
         if decision.verdict == GuardrailVerdict.HUMAN_APPROVAL:
@@ -66,7 +66,7 @@ class MockActionExecutor:
             amount = invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
         # The extension is measured from today, not the (already-passed) original
         # due date — "10 more days" means 10 days from now for an overdue invoice.
-        due_date = max(invoice.due_date, date.today()) + timedelta(  # noqa: DTZ011
+        due_date = max(invoice.due_date, date.today()) + timedelta(
             days=effective.proposed_extension_days
         )
 
@@ -77,7 +77,7 @@ class MockActionExecutor:
             amount=round(amount, 2),
             due_date=due_date,
             status=PromiseStatus.PENDING,
-            created_at=datetime.now(),  # noqa: DTZ005
+            created_at=datetime.now(),
             guardrail_decision_reason=decision.reason,
         )
         self._promises[promise.promise_id] = promise

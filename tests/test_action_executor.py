@@ -58,7 +58,7 @@ def test_allow_creates_promise_with_extension_applied(
     assert promise is not None
     # Invoice is already overdue, so the extension is measured from today, not
     # the (already-passed) original due date.
-    assert promise.due_date == date.today() + timedelta(days=10)  # noqa: DTZ011
+    assert promise.due_date == date.today() + timedelta(days=10)
     assert promise.amount == invoice.amount_due
     assert promise.status == PromiseStatus.PENDING
     assert promise in executor.list_promises()

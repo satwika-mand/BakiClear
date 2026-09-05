@@ -9,10 +9,17 @@ Verified against google-genai 2.22.0 on 2026-09-05:
   types.GenerateContentConfig(response_mime_type=..., response_schema=...)
   response.parsed -> instance of the schema
 
-Resilience: gemini-3.5-flash had a live multi-minute 503 outage window during
-development while gemini-3.5-flash-lite stayed up. _generate_content_resilient
-retries the primary model once, then falls back to GEMINI_FALLBACK_MODEL — a
-transient outage on stage should degrade quality, not kill the demo.
+Resilience: two distinct failure modes observed live during development.
+  - gemini-3.5-flash had a multi-minute 503 (ServerError) outage window while
+    gemini-3.5-flash-lite stayed up -> worth one same-model retry, then fall
+    back, since a 503 is transient.
+  - The free tier caps gemini-3.5-flash at 20 requests/day; once exhausted,
+    Gemini returns 429 RESOURCE_EXHAUSTED (a ClientError). Retrying the SAME
+    model does nothing — the quota won't reset in seconds — so this goes
+    straight to the fallback model, which has its own separate quota bucket.
+Any other ClientError (bad request, invalid schema, auth) is a real bug on
+our side and is raised immediately — retrying or falling back would just
+burn the fallback model's quota on a request that will never succeed.
 """
 
 from __future__ import annotations
@@ -23,7 +30,7 @@ from typing import TypeVar
 
 from google import genai
 from google.genai import types
-from google.genai.errors import ServerError
+from google.genai.errors import ClientError, ServerError
 from pydantic import BaseModel
 
 from ai.config import settings
@@ -33,6 +40,11 @@ log = logging.getLogger(__name__)
 T = TypeVar("T", bound=BaseModel)
 
 _RETRY_BACKOFF_SECONDS = 2.0
+_QUOTA_EXCEEDED_CODE = 429
+
+
+def _is_quota_exceeded(exc: Exception) -> bool:
+    return isinstance(exc, ClientError) and getattr(exc, "code", None) == _QUOTA_EXCEEDED_CODE
 
 
 class LLMError(RuntimeError):
@@ -54,34 +66,35 @@ def get_client() -> genai.Client:
 def _generate_content_resilient(
     *, model: str, contents: str, config: types.GenerateContentConfig
 ) -> types.GenerateContentResponse:
-    """Try the requested model, retry once on transient server overload, then
-    fall back to the configured fallback model. Client errors (bad request,
-    auth, invalid schema) are not retried — those are our bugs, not Gemini's."""
     client = get_client()
-    attempts = [model, model, settings.gemini_fallback_model]
+    fallback = settings.gemini_fallback_model
 
-    last_exc: Exception | None = None
-    for i, attempt_model in enumerate(attempts):
+    def _call(attempt_model: str) -> types.GenerateContentResponse:
+        return client.models.generate_content(model=attempt_model, contents=contents, config=config)
+
+    # 1. Primary model, with one same-model retry on transient 503 overload.
+    for attempt in range(2):
         try:
-            return client.models.generate_content(
-                model=attempt_model, contents=contents, config=config
-            )
+            return _call(model)
         except ServerError as exc:
-            last_exc = exc
-            is_last = i == len(attempts) - 1
-            log.warning(
-                "Gemini %s returned a server error (attempt %d/%d): %s",
-                attempt_model,
-                i + 1,
-                len(attempts),
-                exc,
-            )
-            if not is_last:
+            log.warning("Gemini %s server error (attempt %d/2): %s", model, attempt + 1, exc)
+            if attempt == 0:
                 time.sleep(_RETRY_BACKOFF_SECONDS)
-        except Exception as exc:  # non-transient: don't retry
+        except ClientError as exc:
+            if not _is_quota_exceeded(exc):
+                raise LLMError(f"Gemini call failed: {exc}") from exc
+            log.warning("Gemini %s quota exceeded, falling back to %s: %s", model, fallback, exc)
+            break  # no point retrying the same model on quota exhaustion
+        except Exception as exc:
             raise LLMError(f"Gemini call failed: {exc}") from exc
 
-    raise LLMError(f"Gemini call failed after retries and fallback: {last_exc}") from last_exc
+    # 2. Fallback model, once — either the primary kept 503ing or hit its quota.
+    try:
+        return _call(fallback)
+    except (ServerError, ClientError) as exc:
+        raise LLMError(f"Gemini call failed on both {model} and fallback {fallback}: {exc}") from exc
+    except Exception as exc:
+        raise LLMError(f"Gemini call failed: {exc}") from exc
 
 
 def generate_structured(

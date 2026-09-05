@@ -63,6 +63,27 @@ class NegotiationOutcome:
     promise: PromiseToPay | None
 
 
+@dataclass
+class QuickRisk:
+    """Risk/priority only — no Gemini call. Backs the collection queue screen,
+    which renders every overdue invoice and must not cost an LLM call per row."""
+
+    customer: CustomerProfile
+    invoice: Invoice
+    risk: RiskAssessment
+
+
+def quick_risk(invoice_id: str) -> QuickRisk:
+    provider = get_context_provider()
+    invoice = provider.get_invoice(invoice_id)
+    customer = provider.get_customer(invoice.customer_id)
+    history = provider.get_payment_history(customer.customer_id)
+    behavior = compute_payment_behavior(customer.customer_id, history)
+    facts = derive_customer_facts(customer, history)
+    risk = compute_risk_assessment(invoice, behavior, facts)
+    return QuickRisk(customer=customer, invoice=invoice, risk=risk)
+
+
 def assess_invoice(invoice_id: str) -> Assessment:
     provider = get_context_provider()
     invoice = provider.get_invoice(invoice_id)

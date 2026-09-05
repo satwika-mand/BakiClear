@@ -27,7 +27,7 @@ def _relationship_criticality(tier: CustomerTier, lifetime_value: float) -> str:
 def compute_intelligence(
     customer: CustomerProfile, today: date | None = None
 ) -> CustomerIntelligence:
-    today = today or date.today()  # noqa: DTZ011 — month-level tenure calc, tz precision irrelevant
+    today = today or date.today()
     tenure_months = _tenure_months(customer.customer_since, today)
     tenure_years = tenure_months // 12
     criticality = _relationship_criticality(customer.tier, customer.lifetime_value)
