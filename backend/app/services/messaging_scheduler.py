@@ -9,9 +9,10 @@ from sqlalchemy.orm import Session, joinedload
 
 from ai.agents.message import draft_message
 from ai.agents.risk_engine import compute_payment_behavior
-from ai.schemas import CustomerProfile, CustomerSegment, CustomerTier
+from ai.schemas import CustomerProfile, CustomerSegment, CustomerTier, PaymentRecord
 from ai.schemas import Invoice as AIInvoice
 from backend.app.database import SessionLocal
+from backend.app.models.customer import Customer
 from backend.app.models.invoice import Invoice
 from backend.app.models.message import Message
 from backend.app.services.handoff import create_human_task
@@ -21,7 +22,10 @@ def run_message_cycle(db: Session) -> int:
     invoices = db.scalars(
         select(Invoice).where(
             Invoice.status.in_(["overdue", "in_negotiation"]), Invoice.days_overdue >= 1
-        ).options(joinedload(Invoice.customer))
+        ).options(
+            joinedload(Invoice.customer).selectinload(Customer.payment_records),
+            joinedload(Invoice.customer).selectinload(Customer.promises),
+        )
     ).all()
     sent = 0
     for invoice in invoices:
@@ -34,7 +38,21 @@ def run_message_cycle(db: Session) -> int:
             segment={"gold": CustomerSegment.ENTERPRISE, "standard": CustomerSegment.SMALL_BUSINESS, "at_risk": CustomerSegment.MID_MARKET, "new": CustomerSegment.INDIVIDUAL}.get(customer.segment, CustomerSegment.INDIVIDUAL),
             tier=CustomerTier.WATCH_LIST if customer.segment == "watch_list" else (CustomerTier.GOLD if customer.segment == "gold" else CustomerTier.STANDARD),
             customer_since=customer.created_at.date(), lifetime_value=customer.lifetime_value)
-        behavior = compute_payment_behavior(customer.customer_id, [])
+        history = [
+            PaymentRecord(
+                invoice_id=record.invoice_id,
+                due_date=record.due_date,
+                paid_date=record.paid_date,
+                amount=record.amount,
+                was_disputed=record.disputed,
+                broken_promise=any(
+                    promise.invoice_id == record.invoice_id and promise.status == "broken"
+                    for promise in customer.promises
+                ),
+            )
+            for record in customer.payment_records
+        ]
+        behavior = compute_payment_behavior(customer.customer_id, history)
         draft = draft_message(profile, AIInvoice(invoice_id=invoice.invoice_id, customer_id=invoice.customer_id,
             amount_due=invoice.amount, due_date=invoice.due_date, days_overdue=invoice.days_overdue), behavior, invoice.days_overdue)
         db.add(Message(message_id=f"MSG_{uuid.uuid4().hex[:12].upper()}", invoice_id=invoice.invoice_id,

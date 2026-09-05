@@ -44,3 +44,15 @@ def test_watch_list_commitment_routes_to_human():
     )
 
     assert verdict["route_to_human"] is True
+
+
+def test_dispute_and_broken_promises_route_to_human():
+    base = {
+        "amount": 100,
+        "invoice_amount": 100,
+        "promised_date": date.today() + timedelta(days=1),
+        "days_overdue": 2,
+        "segment": "standard",
+    }
+    assert validate_commitment({**base, "has_open_dispute": True}, policy_for("standard"))["route_to_human"]
+    assert validate_commitment({**base, "broken_promise_count": 2}, policy_for("standard"))["route_to_human"]

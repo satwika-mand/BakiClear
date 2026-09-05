@@ -11,6 +11,7 @@ from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
+import streamlit.components.v1 as components
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -38,6 +39,41 @@ VERDICT_STYLE = {
 }
 
 RISK_COLOR = {"low": "green", "medium": "orange", "high": "red", "critical": "red"}
+
+
+def _render_razorpay_checkout(invoice_id: str, order: dict) -> None:
+    """Embed Razorpay Standard Checkout without exposing the secret key."""
+    if order["order_id"].startswith("order_mock_"):
+        st.info("Mock checkout order created. Set Razorpay Test Mode keys and RAZORPAY_USE_MOCK=false for a payable checkout.")
+        st.code(order["order_id"])
+        return
+    backend_url = settings.backend_base_url.rstrip("/")
+    components.html(
+        f"""
+        <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+        <button id="pay" style="padding:10px 16px;border:0;border-radius:6px;background:#0b72e7;color:white;cursor:pointer">Open Razorpay Test Checkout</button>
+        <p id="result" style="font-family:sans-serif"></p>
+        <script>
+          document.getElementById("pay").onclick = function () {{
+            const checkout = new Razorpay({{
+              key: {order["key_id"]!r}, amount: {order["amount"]}, currency: {order["currency"]!r},
+              order_id: {order["order_id"]!r}, name: "BakiClear", description: "Invoice settlement",
+              handler: async function (response) {{
+                const verification = await fetch("{backend_url}/api/negotiations/{invoice_id}/verify-payment", {{
+                  method: "POST", headers: {{"Content-Type": "application/json"}},
+                  body: JSON.stringify({{...response, idempotency_key: "ui-" + response.razorpay_payment_id}})
+                }});
+                document.getElementById("result").textContent = verification.ok
+                  ? "Payment verified and invoice settled. Refresh the page."
+                  : "Verification failed: " + await verification.text();
+              }}
+            }});
+            checkout.open();
+          }};
+        </script>
+        """,
+        height=90,
+    )
 
 
 def _init_state() -> None:
@@ -296,26 +332,21 @@ def render_negotiation(a: Assessment) -> None:
                 c_pay, c_ask, c_dispute = st.columns(3)
                 if c_pay.button("💳 Pay Now", key=f"pay_{invoice_id}"):
                     if settings.context_source != "api":
-                        st.info("Switch CONTEXT_SOURCE to 'api' to generate a payment link.")
+                        st.info("Switch CONTEXT_SOURCE to 'api' to open Razorpay Standard Checkout.")
                     else:
                         try:
-                            payment_link = provider.request(
+                            checkout_order = provider.request(
                                 "POST",
-                                "/api/payments/create-link",
-                                json={"invoice_id": invoice_id},
+                                f"/api/negotiations/{invoice_id}/create-order",
                             )
-                            st.session_state.setdefault("payment_links", {})[invoice_id] = payment_link
+                            st.session_state.setdefault("checkout_orders", {})[invoice_id] = checkout_order
                         except RuntimeError as exc:
-                            st.error(f"Could not create a payment link: {exc}")
+                            st.error(f"Could not create a Razorpay order: {exc}")
 
-                payment_link = st.session_state.get("payment_links", {}).get(invoice_id)
-                if payment_link:
-                    st.success("✅ Payment link created")
-                    st.link_button("Open Razorpay payment page", payment_link["short_url"])
-                    st.caption(
-                        f"₹{payment_link['amount']:,.0f} · "
-                        f"{'mock link' if payment_link.get('is_mock') else 'Razorpay Test Mode'}"
-                    )
+                checkout_order = st.session_state.get("checkout_orders", {}).get(invoice_id)
+                if checkout_order:
+                    st.success("✅ Razorpay checkout order created")
+                    _render_razorpay_checkout(invoice_id, checkout_order)
 
                 if c_ask.button("❓ Ask Question", key=f"ask_{invoice_id}"):
                     st.info("Chat continues below...")

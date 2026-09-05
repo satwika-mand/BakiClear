@@ -172,6 +172,24 @@ def test_action_logging_and_idempotency(client):
     assert action1["action_id"] == action2["action_id"]
 
 
+def test_escalated_action_creates_human_task(client):
+    invoice = client.get("/api/invoices?limit=1").json()[0]
+    response = client.post(
+        "/api/actions",
+        json={
+            "invoice_id": invoice["invoice_id"],
+            "action_type": "record_promise",
+            "decision": "escalated",
+            "reason": "AI guardrail requires human approval.",
+            "actor": "policy_engine",
+            "idempotency_key": f"{invoice['invoice_id']}:human-approval-test",
+        },
+    )
+    assert response.status_code == 201
+    tasks = client.get("/api/human-tasks").json()
+    assert any(task["invoice_id"] == invoice["invoice_id"] for task in tasks)
+
+
 def test_negotiation_session_and_turns(client):
     """Verify negotiation initiation and conversation turn recording."""
     res_inv = client.get("/api/invoices?limit=1")

@@ -10,6 +10,7 @@ from backend.app.models.action_log import ActionLog
 from backend.app.models.invoice import Invoice
 from backend.app.schemas.action import ActionLogCreate, ActionLogResponse
 from backend.app.services.action_service import log_action
+from backend.app.services.handoff import create_human_task
 
 router = APIRouter(prefix="/api/actions", tags=["Financial Actions Audit Trail"])
 
@@ -65,4 +66,15 @@ def record_action(
         session_id=action_in.session_id,
         idempotency_key=action_in.idempotency_key,
     )
+    # Durable bridge from an AI guardrail HUMAN_APPROVAL verdict (persisted as
+    # ``escalated``) into the backend-owned human collections queue.
+    if _is_new and action_in.decision == "escalated":
+        create_human_task(
+            db,
+            invoice_id=inv.invoice_id,
+            customer_id=inv.customer_id,
+            reason=action_in.reason,
+            priority="urgent",
+        )
+        db.commit()
     return action_record

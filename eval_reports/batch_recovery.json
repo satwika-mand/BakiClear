@@ -1,0 +1,121 @@
+{
+  "label": "Deterministic recovery simulation \u2014 not production performance.",
+  "as_of": "2026-09-05",
+  "scenario_count": 15,
+  "total_due": 1070000,
+  "total_recovered": 589410.0,
+  "recovery_rate_pct": 55.1,
+  "verdict_counts": {
+    "allow": 10,
+    "modify": 2,
+    "reject": 1,
+    "human_approval": 2
+  },
+  "results": [
+    {
+      "invoice_id": "SIM-001",
+      "amount": 42000,
+      "verdict": "allow",
+      "simulated_response": "paid",
+      "recovered_amount": 42000.0
+    },
+    {
+      "invoice_id": "SIM-002",
+      "amount": 68000,
+      "verdict": "allow",
+      "simulated_response": "promise_kept",
+      "recovered_amount": 66640.0
+    },
+    {
+      "invoice_id": "SIM-003",
+      "amount": 120000,
+      "verdict": "allow",
+      "simulated_response": "promise_kept",
+      "recovered_amount": 114000.0
+    },
+    {
+      "invoice_id": "SIM-004",
+      "amount": 31000,
+      "verdict": "allow",
+      "simulated_response": "promise_broken",
+      "recovered_amount": 0.0
+    },
+    {
+      "invoice_id": "SIM-005",
+      "amount": 90000,
+      "verdict": "human_approval",
+      "simulated_response": "human_review",
+      "recovered_amount": 0.0
+    },
+    {
+      "invoice_id": "SIM-006",
+      "amount": 55000,
+      "verdict": "modify",
+      "simulated_response": "promise_kept",
+      "recovered_amount": 53900.0
+    },
+    {
+      "invoice_id": "SIM-007",
+      "amount": 76000,
+      "verdict": "allow",
+      "simulated_response": "paid",
+      "recovered_amount": 73720.0
+    },
+    {
+      "invoice_id": "SIM-008",
+      "amount": 28000,
+      "verdict": "allow",
+      "simulated_response": "promise_broken",
+      "recovered_amount": 0.0
+    },
+    {
+      "invoice_id": "SIM-009",
+      "amount": 145000,
+      "verdict": "reject",
+      "simulated_response": "human_review",
+      "recovered_amount": 0.0
+    },
+    {
+      "invoice_id": "SIM-010",
+      "amount": 39000,
+      "verdict": "allow",
+      "simulated_response": "promise_kept",
+      "recovered_amount": 38610.0
+    },
+    {
+      "invoice_id": "SIM-011",
+      "amount": 82000,
+      "verdict": "allow",
+      "simulated_response": "promise_kept",
+      "recovered_amount": 82000.0
+    },
+    {
+      "invoice_id": "SIM-012",
+      "amount": 64000,
+      "verdict": "modify",
+      "simulated_response": "promise_broken",
+      "recovered_amount": 0.0
+    },
+    {
+      "invoice_id": "SIM-013",
+      "amount": 110000,
+      "verdict": "human_approval",
+      "simulated_response": "human_review",
+      "recovered_amount": 0.0
+    },
+    {
+      "invoice_id": "SIM-014",
+      "amount": 47000,
+      "verdict": "allow",
+      "simulated_response": "paid",
+      "recovered_amount": 47000.0
+    },
+    {
+      "invoice_id": "SIM-015",
+      "amount": 73000,
+      "verdict": "allow",
+      "simulated_response": "promise_kept",
+      "recovered_amount": 71540.0
+    }
+  ]
+}

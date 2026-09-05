@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models.customer import Customer
 from backend.app.models.invoice import Invoice
+from backend.app.models.payment_history import PaymentHistory
 from backend.app.models.policy import PolicyConfig
 from backend.app.models.promise import PromiseToPay
 from backend.app.schemas.promise import PromiseCreate, PromiseMarkPaid, PromiseResponse
@@ -75,6 +76,21 @@ def create_promise(promise_in: PromiseCreate, db: Session = Depends(get_db)):
             "promised_date": promise_in.promised_date,
             "days_overdue": inv.days_overdue,
             "segment": cust.segment,
+            "has_open_dispute": db.scalars(
+                select(PaymentHistory).where(
+                    PaymentHistory.customer_id == cust.customer_id,
+                    PaymentHistory.disputed.is_(True),
+                    PaymentHistory.paid_date.is_(None),
+                )
+            ).first() is not None,
+            "broken_promise_count": len(
+                db.scalars(
+                    select(PromiseToPay).where(
+                        PromiseToPay.customer_id == cust.customer_id,
+                        PromiseToPay.status == "broken",
+                    )
+                ).all()
+            ),
         },
         bounds,
     )

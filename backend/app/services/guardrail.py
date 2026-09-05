@@ -46,11 +46,17 @@ def validate_commitment(commitment: dict[str, Any], policy: dict[str, Any]) -> d
     invoice_amount = float(commitment.get("invoice_amount", 0))
     days_overdue = int(commitment.get("days_overdue", 0))
     segment = str(commitment.get("segment", "standard"))
+    has_open_dispute = bool(commitment.get("has_open_dispute", False))
+    broken_promises = int(commitment.get("broken_promise_count", 0))
     promised_date = commitment.get("promised_date")
     if amount <= 0 or amount > invoice_amount:
         return _verdict(allowed=False, reason="Commitment amount must be positive and no greater than the invoice amount.")
     if isinstance(promised_date, date) and promised_date < date.today():
         return _verdict(allowed=False, reason="Commitment date cannot be in the past.")
+    if has_open_dispute:
+        return _verdict(allowed=False, route_to_human=True, reason="Open dispute requires human approval.")
+    if broken_promises >= int(policy.get("broken_promise_human_threshold", 2)):
+        return _verdict(allowed=False, route_to_human=True, reason="Broken-promise threshold requires human approval.")
     if days_overdue >= 15 or segment == "watch_list":
         return _verdict(allowed=False, route_to_human=True, reason="Overdue/watch-list commitment requires human approval.")
     return _verdict(allowed=True, reason="Commitment is valid for autonomous processing.")
