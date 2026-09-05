@@ -13,6 +13,9 @@ class Settings(BaseSettings):
 
     gemini_api_key: str = ""
     gemini_model: str = "gemini-3.5-flash"
+    # Used when gemini_model is transiently overloaded (observed live during
+    # development: gemini-3.5-flash 503s while flash-lite stays up).
+    gemini_fallback_model: str = "gemini-3.5-flash-lite"
 
     # Where customer/invoice context comes from. "mock" keeps the whole AI
     # pipeline runnable with no backend and no database.
