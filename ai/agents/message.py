@@ -9,8 +9,10 @@ Safety: Deterministic block on threats, harassment, fabricated penalties.
 """
 
 import re
-from ai.schemas import CustomerTier, CustomerProfile, Invoice, PaymentBehavior
+
 from pydantic import BaseModel
+
+from ai.schemas import CustomerProfile, CustomerTier, Invoice, PaymentBehavior
 
 
 class MessageDraft(BaseModel):
@@ -36,7 +38,7 @@ def _safety_check(text: str) -> bool:
         r"credit bureau",
         r"third party",
         r"debt collector",
-        r"wage garnish",
+        r"garnish",  # catches "wage garnishment", "garnish your wages", any word order
         r"if you don't pay",
         r"or else",
     ]

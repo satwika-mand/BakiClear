@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 from ai.agents.action_executor import get_action_executor
 from ai.agents.customer_intelligence import compute_intelligence
-from ai.agents.message import draft_message
 from ai.agents.negotiation import extract_negotiation_result, to_action_proposal
 from ai.agents.risk_engine import (
     compute_payment_behavior,
@@ -154,9 +153,7 @@ def should_escalate_to_human(assessment: Assessment, decision: GuardrailDecision
         return True
     if assessment.facts.has_open_dispute:
         return True
-    if decision.verdict == GuardrailVerdict.HUMAN_APPROVAL:
-        return True
-    return False
+    return decision.verdict == GuardrailVerdict.HUMAN_APPROVAL
 
 
 def negotiate_turn(
