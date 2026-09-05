@@ -7,6 +7,7 @@ shown explicitly at every negotiation turn.
 """
 
 import sys
+from html import escape
 from datetime import datetime
 from pathlib import Path
 
@@ -29,29 +30,86 @@ from ai.orchestration import get_context_provider
 from ai.orchestration.pipeline import Assessment, assess_invoice, negotiate_turn, quick_risk
 from ai.schemas import GuardrailVerdict, NegotiationTurn, PromiseStatus
 
-st.set_page_config(page_title="BakiClear", page_icon="💰", layout="wide")
+st.set_page_config(page_title="BakiClear", layout="wide")
 
 VERDICT_STYLE = {
-    GuardrailVerdict.ALLOW: ("✅ ALLOW", "green"),
-    GuardrailVerdict.MODIFY: ("✏️ MODIFY", "orange"),
-    GuardrailVerdict.REJECT: ("⛔ REJECT", "red"),
-    GuardrailVerdict.HUMAN_APPROVAL: ("🙋 HUMAN APPROVAL REQUIRED", "violet"),
+    GuardrailVerdict.ALLOW: ("ALLOW", "green"),
+    GuardrailVerdict.MODIFY: ("MODIFY", "orange"),
+    GuardrailVerdict.REJECT: ("REJECT", "red"),
+    GuardrailVerdict.HUMAN_APPROVAL: ("HUMAN REVIEW", "violet"),
 }
 
 RISK_COLOR = {"low": "green", "medium": "orange", "high": "red", "critical": "red"}
 
 
-def _render_razorpay_checkout(invoice_id: str, order: dict) -> None:
-    """Embed Razorpay Standard Checkout without exposing the secret key."""
+def _apply_theme() -> None:
+    """Light editorial surface used across the existing Streamlit workflow."""
+    st.markdown(
+        """
+        <style>
+        @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&family=Manrope:wght@500;600;700;800&display=swap');
+        :root { --paper:#fcfbf7; --paper-deep:#f2eee6; --ink:#1c1b18; --warm:#b98232; --warm-deep:#9a702d; --muted:#6f695f; --line:#d9d2c6; --card:#fffdf9; --charcoal:#24221e; }
+        .stApp { background:radial-gradient(ellipse 42% 28% at 94% 0%, rgba(216,169,91,.31), transparent 72%), linear-gradient(135deg,var(--paper),var(--paper-deep)); color:var(--ink); font-family:'DM Sans',Arial,sans-serif; }
+        .block-container { max-width:1270px; padding:3.6rem 4.4rem 5rem; }
+        h1,h2,h3,[data-testid="stMetricLabel"] { font-family:'Manrope','DM Sans',sans-serif !important; color:var(--ink) !important; letter-spacing:-.045em; }
+        h1 { font-size:4.1rem !important; font-weight:800 !important; line-height:.98 !important; margin:0 0 .75rem !important; }
+        h2 { font-size:2.05rem !important; font-weight:750 !important; margin-top:2.75rem !important; }
+        h3 { font-weight:700 !important; }
+        p,li,div { font-size:.97rem; }
+        [data-testid="stMarkdownContainer"] p { color:var(--muted); }
+        [data-testid="stCaptionContainer"] { color:var(--muted) !important; line-height:1.6; }
+        [data-testid="stTabs"] [role="tablist"] { gap:2rem; border-top:1px solid var(--line); border-bottom:1px solid var(--line); padding:.1rem 0; }
+        [data-testid="stTabs"] button[role="tab"] { color:#a0988a; font-family:'Manrope',sans-serif; font-size:.75rem; font-weight:700; letter-spacing:.065em; padding:1rem 0 .9rem; }
+        [data-testid="stTabs"] button[aria-selected="true"] { color:var(--ink); border-bottom:2px solid var(--warm) !important; }
+        [data-testid="stTabs"] button[role="tab"]:hover { color:var(--ink); }
+        [data-testid="stMetric"] { background:var(--card); border:1px solid var(--line); border-radius:3px; padding:1.1rem 1.2rem; }
+        [data-testid="stMetricLabel"] { color:var(--muted) !important; font-size:.72rem !important; letter-spacing:.06em !important; text-transform:uppercase; }
+        [data-testid="stMetricValue"] { color:var(--ink) !important; font-family:'Manrope',sans-serif; font-weight:700; }
+        [data-testid="stVerticalBlockBorderWrapper"] { border:1px solid var(--line) !important; border-radius:3px !important; background:var(--card) !important; }
+        .stButton > button, .stLinkButton > a { min-height:2.6rem; border:1px solid #cfc5b5 !important; border-radius:2px !important; background:#f3ebdd !important; color:var(--ink) !important; font-family:'Manrope',sans-serif !important; font-size:.76rem !important; font-weight:800 !important; letter-spacing:.045em; text-transform:uppercase; padding:.5rem 1rem; }
+        .stButton > button:hover, .stLinkButton > a:hover { border-color:var(--warm) !important; background:var(--warm) !important; color:#fffdf9 !important; }
+        [data-testid="stChatMessage"] { background:var(--card); border:1px solid var(--line); border-radius:3px; padding:1rem; }
+        [data-testid="stChatMessage"] p { color:var(--ink) !important; }
+        [data-testid="stAlert"] { border:1px solid var(--line); border-radius:3px; background:var(--card); }
+        [data-testid="stAlert"] p { color:var(--ink) !important; }
+        hr { border-color:var(--line) !important; margin:2.1rem 0 !important; }
+        code { color:var(--warm-deep) !important; background:#f2ece1 !important; }
+        .stTextInput input, .stTextArea textarea { background:var(--card) !important; border:1px solid var(--line) !important; border-radius:3px !important; color:var(--ink) !important; }
+        [data-testid="stAppViewContainer"] { background:transparent; }
+        .brand-kicker { font-family:'Manrope',sans-serif; letter-spacing:.22em; color:var(--warm-deep); font-size:.7rem; font-weight:800; margin:0 0 .55rem; }
+        .brand-row { display:flex; align-items:baseline; justify-content:space-between; padding-bottom:1.8rem; }
+        .brand-name { color:var(--ink); font-family:'Manrope',sans-serif; font-size:1.65rem; font-weight:800; letter-spacing:-.07em; margin:0; }
+        .brand-caption { color:var(--muted); font-size:.86rem; margin:0; }
+        .landing-hero { padding:4.5rem 0 3rem; }
+        .landing-title { max-width:820px; color:var(--ink); font-family:'Manrope',sans-serif; font-size:clamp(3.2rem,6vw,5.4rem); font-weight:800; line-height:.96; letter-spacing:-.07em; margin:0; }
+        .landing-title .accent { color:var(--warm); }
+        .landing-copy { max-width:600px; color:var(--muted); font-size:1.08rem; line-height:1.65; margin:1.7rem 0 0; }
+        .landing-rule { border:0; border-top:1px solid var(--line); margin:0 !important; }
+        .concept-panel { min-height:260px; padding:2rem 2.1rem; margin:2.4rem 0 .8rem; border:1px solid var(--line); background:var(--card); box-shadow:0 18px 32px rgba(49,37,22,.07); }
+        .concept-panel.dark { background:var(--charcoal); border-color:var(--charcoal); }
+        .panel-kicker { color:var(--warm-deep); font-family:'Manrope',sans-serif; font-size:.73rem; font-weight:800; letter-spacing:.16em; margin:0 0 1rem; }
+        .dark .panel-kicker { color:#d8a64d; }
+        .panel-title { color:var(--ink); font-family:'Manrope',sans-serif; font-size:1.65rem; font-weight:750; letter-spacing:-.045em; line-height:1.12; margin:0 0 .9rem; }
+        .dark .panel-title { color:#f6f0e5; }
+        .panel-copy { color:var(--muted); font-size:.94rem; line-height:1.55; margin:0; }
+        .dark .panel-copy { color:#c9c0b2; }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def _render_secure_checkout(invoice_id: str, order: dict) -> None:
+    """Embed the configured checkout provider without exposing secret material."""
     if order["order_id"].startswith("order_mock_"):
-        st.info("Mock checkout order created. Set Razorpay Test Mode keys and RAZORPAY_USE_MOCK=false for a payable checkout.")
+        st.info("Mock checkout order created. Set test gateway keys and disable mock mode for a payable checkout.")
         st.code(order["order_id"])
         return
     backend_url = settings.backend_base_url.rstrip("/")
     components.html(
         f"""
         <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-        <button id="pay" style="padding:10px 16px;border:0;border-radius:6px;background:#0b72e7;color:white;cursor:pointer">Open Razorpay Test Checkout</button>
+        <button id="pay" style="padding:10px 16px;border:0;border-radius:6px;background:#1d211f;color:#fffaf1;cursor:pointer;font-family:Arial,sans-serif">Open secure test checkout</button>
         <p id="result" style="font-family:sans-serif"></p>
         <script>
           document.getElementById("pay").onclick = function () {{
@@ -101,14 +159,61 @@ def _fetch_queue_rows() -> list[dict]:
     return get_context_provider().get_collection_queue()
 
 
-def render_queue() -> None:
-    st.subheader("📋 Overdue Collection Queue")
-    st.caption("Every overdue invoice, ranked by deterministic priority. No LLM call occurs "
-               "until you open Strategy for a specific invoice.")
+def _render_queue_landing(
+    customer_name: str,
+    invoice_id: str,
+    amount: float,
+    days_overdue: int,
+    recommendation: str,
+) -> None:
+    """Render the Queue tab's editorial landing surface with live queue data."""
+    st.markdown(
+        """
+        <section class="landing-hero">
+          <p class="brand-kicker">COLLECTIONS INTELLIGENCE</p>
+          <p class="landing-title">Recover with clarity.<br><span class="accent">Escalate with care.</span></p>
+          <p class="landing-copy">A focused workspace for overdue invoices, responsible decisions, and transparent collection outcomes.</p>
+        </section>
+        """,
+        unsafe_allow_html=True,
+    )
 
+    panel_left, panel_right = st.columns(2, gap="large")
+    with panel_left:
+        st.markdown(
+            f"""<section class="concept-panel"><p class="panel-kicker">PRIORITY QUEUE · LIVE</p>
+            <p class="panel-title">{escape(customer_name)}</p>
+            <p class="panel-copy">{escape(invoice_id)} &nbsp;·&nbsp; {days_overdue} days overdue<br>
+            <strong>₹{amount:,.0f}</strong> &nbsp;·&nbsp; {escape(recommendation)}</p></section>""",
+            unsafe_allow_html=True,
+        )
+    with panel_right:
+        st.markdown(
+            """<section class="concept-panel dark"><p class="panel-kicker">COLLECTION DECISION</p>
+            <p class="panel-title">A policy-first way to recover</p>
+            <p class="panel-copy">Every proposed action is bounded, reviewed, and recorded before it reaches a customer.</p></section>""",
+            unsafe_allow_html=True,
+        )
+
+
+def render_queue() -> None:
     provider = get_context_provider()
     if settings.context_source == "api":
         rows = _fetch_queue_rows()
+        if rows:
+            lead = rows[0]
+            _render_queue_landing(
+                lead["customer"]["name"],
+                lead["invoice"]["invoice_id"],
+                lead["invoice"]["amount"],
+                lead["invoice"]["days_overdue"],
+                lead["risk"]["recommended_action"],
+            )
+        else:
+            _render_queue_landing("No overdue invoices", "—", 0, 0, "The collection queue is clear.")
+        st.subheader("Collection Queue")
+        st.caption("Every overdue invoice, ranked by deterministic priority. No LLM call occurs "
+                   "until you open Strategy for a specific invoice.")
         for row in rows:
             invoice = row["invoice"]
             customer = row["customer"]
@@ -120,7 +225,7 @@ def render_queue() -> None:
             cols[3].markdown(f"{invoice['days_overdue']} days")
             cols[4].markdown(f":{RISK_COLOR[risk['risk_tier']]}[{risk['risk_tier'].upper()}]")
             cols[5].markdown(risk["priority"].upper())
-            if cols[6].button("Review →", key=f"select_{invoice['invoice_id']}"):
+            if cols[6].button("Review", key=f"select_{invoice['invoice_id']}"):
                 st.session_state["selected_invoice_id"] = invoice["invoice_id"]
                 st.rerun()
             st.caption(risk["recommended_action"])
@@ -131,6 +236,21 @@ def render_queue() -> None:
     rows = [quick_risk(inv.invoice_id) for inv in invoices]
     rows.sort(key=lambda r: -r.risk.priority_score)
 
+    if rows:
+        lead = rows[0]
+        _render_queue_landing(
+            lead.customer.name,
+            lead.invoice.invoice_id,
+            lead.invoice.amount_due,
+            lead.invoice.days_overdue,
+            ", ".join(lead.risk.contributing_factors),
+        )
+    else:
+        _render_queue_landing("No overdue invoices", "—", 0, 0, "The collection queue is clear.")
+    st.subheader("Collection Queue")
+    st.caption("Every overdue invoice, ranked by deterministic priority. No LLM call occurs "
+               "until you open Strategy for a specific invoice.")
+
     for r in rows:
         cols = st.columns([3, 2, 2, 2, 2, 2, 2])
         cols[0].markdown(f"**{r.customer.name}**  \n`{r.customer.customer_id}` · {r.customer.tier.value}")
@@ -139,7 +259,7 @@ def render_queue() -> None:
         cols[3].markdown(f"{r.invoice.days_overdue} days")
         cols[4].markdown(f":{RISK_COLOR[r.risk.risk_level.value]}[{r.risk.risk_level.value.upper()}]")
         cols[5].markdown(f"{r.risk.priority_level.value.upper()}")
-        if cols[6].button("Review →", key=f"select_{r.invoice.invoice_id}"):
+        if cols[6].button("Review", key=f"select_{r.invoice.invoice_id}"):
             st.session_state["selected_invoice_id"] = r.invoice.invoice_id
             st.rerun()
         st.caption(", ".join(r.risk.contributing_factors))
@@ -147,7 +267,7 @@ def render_queue() -> None:
 
 
 def render_customer_intelligence(a: Assessment) -> None:
-    st.subheader("🧠 Customer Intelligence")
+    st.subheader("Customer Intelligence")
     col1, col2 = st.columns(2)
     with col1:
         st.markdown("**Relationship**")
@@ -171,14 +291,14 @@ def render_customer_intelligence(a: Assessment) -> None:
 
 
 def render_strategy(a: Assessment) -> None:
-    st.subheader("🎯 Collection Strategy")
+    st.subheader("Collection Strategy")
     st.caption("Gemini's proposal — not yet authorized. Compare against the actual enforced "
                "policy on the right.")
 
     rule = a.policy.rule_for(a.customer.tier)
     col1, col2 = st.columns(2)
     with col1:
-        st.markdown("#### 🤖 AI Suggestion")
+        st.markdown("#### Proposed approach")
         st.write(f"**Channel:** {a.strategy.recommended_channel.value}")
         st.write(f"**Tone:** {a.strategy.tone.value}")
         st.write(f"**Urgency:** {a.strategy.urgency}")
@@ -186,7 +306,7 @@ def render_strategy(a: Assessment) -> None:
         st.write(f"**Suggested max discount:** {a.strategy.max_discount_pct}%")
         st.write(f"**AI thinks human approval needed:** {a.strategy.requires_human_approval}")
     with col2:
-        st.markdown(f"#### 🔒 Enforced Policy ({a.customer.tier.value} tier)")
+        st.markdown(f"#### Enforced policy ({a.customer.tier.value} tier)")
         st.write(f"**Actual max extension:** {rule.max_extension_days} days")
         st.write(f"**Actual max discount:** {rule.max_discount_pct}%")
         st.write(f"**Human approval if disputed:** {rule.requires_human_approval_if_disputed}")
@@ -203,7 +323,7 @@ def render_strategy(a: Assessment) -> None:
 
 
 def render_negotiation(a: Assessment) -> None:
-    st.subheader("💬 Negotiation")
+    st.subheader("Negotiation")
     invoice_id = a.invoice.invoice_id
     provider = get_context_provider()
 
@@ -255,7 +375,7 @@ def render_negotiation(a: Assessment) -> None:
 
     for turn in conversation:
         if turn.speaker == "system":
-            st.caption(f"🔧 system: {turn.message}")
+            st.caption(f"System: {turn.message}")
             continue
         with st.chat_message("assistant" if turn.speaker == "ai" else "user"):
             st.write(turn.message)
@@ -302,7 +422,7 @@ def render_negotiation(a: Assessment) -> None:
     outcome = st.session_state.get("last_outcome")
     if outcome and outcome.decision.original_proposal.invoice_id == invoice_id:
         st.divider()
-        st.markdown("### 🔍 Policy Panel — what just happened")
+        st.markdown("### Policy decision")
         label, color = VERDICT_STYLE[outcome.decision.verdict]
         c1, c2, c3 = st.columns(3)
         c1.metric("Customer asked for", f"{outcome.result.requested_extension_days}d ext / {outcome.result.requested_discount_pct}% off")
@@ -314,7 +434,7 @@ def render_negotiation(a: Assessment) -> None:
         # ACTION CARD: Show approved terms (ALLOW or MODIFY)
         if outcome.decision.verdict in [GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY]:
             st.divider()
-            st.markdown("### ✅ Approved Payment Terms")
+            st.markdown("### Approved payment terms")
             with st.container(border=True):
                 effective = outcome.decision.modified_proposal or outcome.decision.original_proposal
                 approved_amount = a.invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
@@ -330,9 +450,9 @@ def render_negotiation(a: Assessment) -> None:
                 )
 
                 c_pay, c_ask, c_dispute = st.columns(3)
-                if c_pay.button("💳 Pay Now", key=f"pay_{invoice_id}"):
+                if c_pay.button("Pay now", key=f"pay_{invoice_id}"):
                     if settings.context_source != "api":
-                        st.info("Switch CONTEXT_SOURCE to 'api' to open Razorpay Standard Checkout.")
+                        st.info("Switch CONTEXT_SOURCE to 'api' to open secure checkout.")
                     else:
                         try:
                             checkout_order = provider.request(
@@ -341,28 +461,28 @@ def render_negotiation(a: Assessment) -> None:
                             )
                             st.session_state.setdefault("checkout_orders", {})[invoice_id] = checkout_order
                         except RuntimeError as exc:
-                            st.error(f"Could not create a Razorpay order: {exc}")
+                            st.error(f"Could not create a checkout order: {exc}")
 
                 checkout_order = st.session_state.get("checkout_orders", {}).get(invoice_id)
                 if checkout_order:
-                    st.success("✅ Razorpay checkout order created")
-                    _render_razorpay_checkout(invoice_id, checkout_order)
+                    st.success("Checkout order created")
+                    _render_secure_checkout(invoice_id, checkout_order)
 
-                if c_ask.button("❓ Ask Question", key=f"ask_{invoice_id}"):
+                if c_ask.button("Ask question", key=f"ask_{invoice_id}"):
                     st.info("Chat continues below...")
 
-                if c_dispute.button("🚫 Dispute", key=f"dispute_{invoice_id}"):
+                if c_dispute.button("Dispute", key=f"dispute_{invoice_id}"):
                     st.warning("Dispute noted. Escalating to human team.")
 
         if outcome.promise:
             st.success(
-                f"✅ Promise created: {outcome.promise.promise_id} — ₹{outcome.promise.amount:,.0f} "
+                f"Promise created: {outcome.promise.promise_id} — ₹{outcome.promise.amount:,.0f} "
                 f"due {outcome.promise.due_date}"
             )
 
 
 def render_outcome() -> None:
-    st.subheader("✅ Outcome")
+    st.subheader("Outcome")
     executor = get_action_executor()
 
     st.markdown("**Promises to Pay**")
@@ -419,7 +539,7 @@ def _cached_inbox_entries() -> list[tuple]:
 
 def render_automated_inbox() -> None:
     """Simulated WhatsApp-style inbox of outgoing automated messages."""
-    st.subheader("📬 Automated Inbox")
+    st.subheader("Automated Inbox")
     st.caption("Scheduled & sent reminder messages. Click to open full conversation.")
 
     provider = get_context_provider()
@@ -433,7 +553,7 @@ def render_automated_inbox() -> None:
             cols[0].markdown("**BakiClear Collections**")
             cols[1].markdown(f"`{message['invoice_id']}`")
             cols[2].markdown(f"{message['tier'].replace('_', ' ').title()} · {message['channel']}")
-            if cols[3].button("Review →", key=f"inbox_{message['message_id']}"):
+            if cols[3].button("Review", key=f"inbox_{message['message_id']}"):
                 st.session_state["selected_invoice_id"] = message["invoice_id"]
                 st.rerun()
             st.caption(message["body"])
@@ -450,11 +570,11 @@ def render_automated_inbox() -> None:
         cols[0].markdown(f"**{customer.name}**")
         cols[1].markdown(f"`{inv.invoice_id}`")
         cols[2].markdown(f"{inv.days_overdue} days overdue · {message.tone} · via {message.channel_recommended}")
-        if cols[3].button("→", key=f"inbox_{inv.invoice_id}"):
+        if cols[3].button("Review", key=f"inbox_{inv.invoice_id}"):
             st.session_state["selected_invoice_id"] = inv.invoice_id
             st.rerun()
 
-        st.caption(f"💬 {message.subject}")
+        st.caption(message.subject)
         st.divider()
 
 
@@ -484,23 +604,23 @@ def _cached_escalated_rows() -> list[dict]:
 
 def render_human_collection_queue() -> None:
     """Queue of escalated cases awaiting human review (HUMAN_APPROVAL verdicts)."""
-    st.subheader("👤 Human Collection Queue")
+    st.subheader("Human Collection Queue")
     st.caption("Cases escalated by the guardrail. Click 'Review' to see full conversation & context.")
 
     provider = get_context_provider()
     if settings.context_source == "api":
         tasks = provider.request("GET", "/api/human-tasks")
         if not tasks:
-            st.success("✅ No escalations pending.")
+            st.success("No escalations pending.")
             return
-        st.warning(f"⚠️ {len(tasks)} case(s) pending human review")
+        st.warning(f"{len(tasks)} case(s) pending human review")
         for task in tasks[:10]:
             with st.container(border=True):
                 c1, c2, c3 = st.columns([2, 2, 3])
                 c1.markdown(f"**{task['customer_id']}**")
                 c2.markdown(f"`{task['invoice_id']}`")
                 c3.markdown(f"**{task['priority'].upper()}** · {task['reason']}")
-                if st.button("Review →", key=f"human_{task['task_id']}"):
+                if st.button("Review", key=f"human_{task['task_id']}"):
                     st.session_state["selected_invoice_id"] = task["invoice_id"]
                     st.rerun()
         return
@@ -508,10 +628,10 @@ def render_human_collection_queue() -> None:
     escalated = _cached_escalated_rows()
 
     if not escalated:
-        st.success("✅ No escalations pending.")
+        st.success("No escalations pending.")
         return
 
-    st.warning(f"⚠️ {len(escalated)} case(s) pending human review")
+    st.warning(f"{len(escalated)} case(s) pending human review")
     st.divider()
 
     for row in escalated[:5]:  # Show top 5
@@ -523,11 +643,11 @@ def render_human_collection_queue() -> None:
             c3.markdown(f"**{inv['days_overdue']} days overdue**  \n"
                        f"Reason: High days overdue + watch_list tier")
 
-            if st.button("📞 Call Customer", key=f"call_{inv['invoice_id']}"):
+            if st.button("Call customer", key=f"call_{inv['invoice_id']}"):
                 st.info(f"Calling {customer['name']}: +91-XXXX-XXXX  \n"
                        f"Reference: {inv['invoice_id']}")
 
-            if st.button("✅ Approve & Create Promise", key=f"approve_{inv['invoice_id']}"):
+            if st.button("Approve and create promise", key=f"approve_{inv['invoice_id']}"):
                 st.success("Promise created and sent to customer.")
 
             st.divider()
@@ -555,19 +675,19 @@ def _cached_recovery_metrics():
 
 
 def render_metrics() -> None:
-    st.subheader("📊 Metrics & Evaluation")
+    st.subheader("Metrics and Evaluation")
     st.caption(
         "Every number below is either exhaustively computed or read from real recorded "
         "system activity — nothing here is simulated or estimated."
     )
 
     # --- 1. Guardrail correctness: exhaustive, not sampled ---
-    st.markdown("### 🛡️ Guardrail Safety (Exhaustive Boundary-Value Test)")
+    st.markdown("### Guardrail safety")
     boundary_report = _cached_boundary_report()
     b1, b2, b3 = st.columns(3)
     b1.metric("Cases tested", boundary_report.total_cases_tested)
     b2.metric("Violations found", len(boundary_report.violations))
-    b3.metric("Result", "✅ PASS" if boundary_report.passed else "❌ FAIL")
+    b3.metric("Result", "PASS" if boundary_report.passed else "FAIL")
     st.caption(
         "Complete coverage — every tier × dispute-state × broken-promise-count × "
         "discount/extension boundary combination, not a random sample."
@@ -580,7 +700,7 @@ def render_metrics() -> None:
     st.divider()
 
     # --- 2. Real audit-log metrics (actual recorded verdicts/promises) ---
-    st.markdown("### 📋 Real Negotiation Outcomes (from backend audit log)")
+    st.markdown("### Negotiation outcomes")
     action_metrics = _cached_action_log_metrics()
     if not action_metrics.available:
         st.info("No recorded negotiation activity yet — run some negotiations first, or this is running in mock mode.")
@@ -613,13 +733,13 @@ def render_metrics() -> None:
     st.divider()
 
     # --- 3. Message safety red-team ---
-    st.markdown("### 🚨 Message Safety Red-Team")
+    st.markdown("### Message safety review")
     safety_report = run_message_safety_redteam()
     s1, s2 = st.columns(2)
     s1.metric("Catch rate", f"{safety_report.catch_rate_pct}%")
     s2.metric("Cases tested", safety_report.total_cases)
     if safety_report.missed:
-        st.error(f"⚠️ {len(safety_report.missed)} unsafe pattern(s) not caught:")
+        st.error(f"{len(safety_report.missed)} unsafe pattern(s) not caught:")
         for m in safety_report.missed:
             st.code(m)
     else:
@@ -628,7 +748,7 @@ def render_metrics() -> None:
     st.divider()
 
     # --- 4. Recovery metrics: passthrough of backend's real computation ---
-    st.markdown("### 💰 Recovery (from backend, real DB state)")
+    st.markdown("### Recovery")
     recovery = _cached_recovery_metrics()
     if not recovery.available:
         st.info("Recovery metrics unavailable (mock mode or backend unreachable).")
@@ -641,11 +761,19 @@ def render_metrics() -> None:
 
 def main() -> None:
     _init_state()
-    st.title("💰 BakiClear")
-    st.caption("AI-Powered Collections Strategy & Negotiation — "
-               "**LLM proposes. Policy decides. Backend executes. Database records.**")
+    _apply_theme()
+    st.markdown(
+        """
+        <div class="brand-row">
+          <div><p class="brand-name">BakiClear</p><p class="brand-kicker">COLLECTIONS INTELLIGENCE</p></div>
+          <p class="brand-caption">Policy-first recovery workspace</p>
+        </div>
+        <hr class="landing-rule">
+        """,
+        unsafe_allow_html=True,
+    )
 
-    tabs = st.tabs(["📋 Queue", "🧠 Intelligence", "🎯 Strategy", "💬 Negotiation", "✅ Outcome", "📬 Inbox", "👤 Human Queue", "📊 Metrics"])
+    tabs = st.tabs(["Queue", "Intelligence", "Strategy", "Negotiation", "Outcome", "Inbox", "Human Queue", "Metrics"])
 
     with tabs[0]:
         render_queue()

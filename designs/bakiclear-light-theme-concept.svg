@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1440" height="900" viewBox="0 0 1440 900" fill="none">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1440" y2="900" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#FCFBF7"/>
+      <stop offset="1" stop-color="#F2EEE6"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0" cy="0" r="1" gradientTransform="translate(1260 90) rotate(139) scale(510 340)" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#E3C68D" stop-opacity=".52"/>
+      <stop offset="1" stop-color="#E3C68D" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="shadow" x="-15%" y="-15%" width="130%" height="150%"><feDropShadow dx="0" dy="18" stdDeviation="22" flood-color="#312516" flood-opacity=".10"/></filter>
+  </defs>
+  <rect width="1440" height="900" fill="url(#bg)"/>
+  <rect width="1440" height="900" fill="url(#glow)"/>
+  <g font-family="Arial, Helvetica, sans-serif" fill="#1C1B18">
+    <text x="88" y="86" font-size="25" font-weight="700" letter-spacing="-1">BakiClear</text>
+    <text x="88" y="113" font-size="12" font-weight="700" fill="#9A702D" letter-spacing="2.7">COLLECTIONS INTELLIGENCE</text>
+    <line x1="88" y1="148" x2="1352" y2="148" stroke="#D9D2C6"/>
+    <g font-size="14" font-weight="700" letter-spacing=".7">
+      <text x="802" y="91" fill="#A0988A">QUEUE</text>
+      <text x="888" y="91" fill="#A0988A">INTELLIGENCE</text>
+      <text x="1028" y="91" fill="#A0988A">STRATEGY</text>
+      <text x="1130" y="91" fill="#A0988A">NEGOTIATION</text>
+      <text x="1285" y="91" fill="#1C1B18">METRICS</text>
+    </g>
+    <rect x="1284" y="106" width="67" height="2" fill="#B98232"/>
+    <text x="88" y="243" font-size="66" font-weight="700" letter-spacing="-3.8">Recover with clarity.</text>
+    <text x="88" y="308" font-size="66" font-weight="700" letter-spacing="-3.8" fill="#B98232">Escalate with care.</text>
+    <text x="91" y="358" font-size="19" fill="#6F695F">A focused workspace for overdue invoices, responsible decisions,</text>
+    <text x="91" y="386" font-size="19" fill="#6F695F">and transparent collection outcomes.</text>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="88" y="450" width="585" height="372" rx="3" fill="#FFFDF9" stroke="#D8D0C2"/>
+    <text x="121" y="495" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#9A702D" letter-spacing="2">PRIORITY QUEUE</text>
+    <text x="121" y="532" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#1C1B18" letter-spacing="-1">Invoices requiring attention</text>
+    <line x1="121" y1="560" x2="640" y2="560" stroke="#E3DDD3"/>
+    <g font-family="Arial, Helvetica, sans-serif">
+      <text x="121" y="602" font-size="17" font-weight="700" fill="#1C1B18">Meridian Textiles</text>
+      <text x="121" y="626" font-size="14" fill="#767066">INV-2065  ·  89 days overdue</text>
+      <text x="503" y="606" font-size="16" font-weight="700" fill="#A26A2D">₹313,082</text>
+      <line x1="121" y1="651" x2="640" y2="651" stroke="#E3DDD3"/>
+      <text x="121" y="693" font-size="17" font-weight="700" fill="#1C1B18">Aditi Retailers</text>
+      <text x="121" y="717" font-size="14" fill="#767066">INV-2044  ·  88 days overdue</text>
+      <text x="503" y="697" font-size="16" font-weight="700" fill="#A26A2D">₹302,501</text>
+      <line x1="121" y1="742" x2="640" y2="742" stroke="#E3DDD3"/>
+      <text x="121" y="783" font-size="14" font-weight="700" fill="#1C1B18">VIEW COLLECTION QUEUE</text>
+      <text x="605" y="783" font-size="19" fill="#9A702D">→</text>
+    </g>
+  </g>
+  <g filter="url(#shadow)">
+    <rect x="708" y="450" width="644" height="372" rx="3" fill="#24221E"/>
+    <text x="746" y="496" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#D8A64D" letter-spacing="2">COLLECTION DECISION</text>
+    <text x="746" y="538" font-family="Arial, Helvetica, sans-serif" font-size="32" font-weight="700" fill="#F6F0E5" letter-spacing="-1.4">A policy-first way to recover</text>
+    <text x="746" y="573" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#C9C0B2">Every proposed action is bounded, reviewed,</text>
+    <text x="746" y="598" font-family="Arial, Helvetica, sans-serif" font-size="17" fill="#C9C0B2">and recorded before it reaches a customer.</text>
+    <line x1="746" y1="633" x2="1315" y2="633" stroke="#504B43"/>
+    <text x="746" y="678" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#D8A64D" letter-spacing="1.8">CURRENT PRIORITY</text>
+    <text x="746" y="720" font-family="Arial, Helvetica, sans-serif" font-size="28" font-weight="700" fill="#F6F0E5">High-risk recovery case</text>
+    <rect x="1107" y="678" width="208" height="55" fill="#F3EBDD"/>
+    <text x="1153" y="712" font-family="Arial, Helvetica, sans-serif" font-size="13" font-weight="700" fill="#23211D" letter-spacing="1">REVIEW CASE</text>
+    <text x="746" y="774" font-family="Arial, Helvetica, sans-serif" font-size="14" fill="#AFA79A">Transparent guardrails · Human escalation · Outcome tracking</text>
+  </g>
+</svg>
