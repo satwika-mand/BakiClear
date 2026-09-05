@@ -15,6 +15,7 @@ import streamlit as st
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from ai.agents.action_executor import get_action_executor
+from ai.config import settings
 from ai.orchestration import get_context_provider
 from ai.orchestration.pipeline import Assessment, assess_invoice, negotiate_turn, quick_risk
 from ai.schemas import GuardrailVerdict, NegotiationTurn, PromiseStatus
@@ -49,10 +50,30 @@ def _get_assessment(invoice_id: str) -> Assessment:
 
 def render_queue() -> None:
     st.subheader("📋 Overdue Collection Queue")
-    st.caption("Every overdue invoice, ranked by AI-computed priority. Risk scoring here is "
-               "pure Python — no LLM call until you open Strategy for a specific invoice.")
+    st.caption("Every overdue invoice, ranked by deterministic priority. No LLM call occurs "
+               "until you open Strategy for a specific invoice.")
 
     provider = get_context_provider()
+    if settings.context_source == "api":
+        rows = provider.get_collection_queue()
+        for row in rows:
+            invoice = row["invoice"]
+            customer = row["customer"]
+            risk = row["risk"]
+            cols = st.columns([3, 2, 2, 2, 2, 2, 2])
+            cols[0].markdown(f"**{customer['name']}**  \n`{customer['customer_id']}` · {customer['segment']}")
+            cols[1].markdown(f"`{invoice['invoice_id']}`")
+            cols[2].markdown(f"₹{invoice['amount']:,.0f}")
+            cols[3].markdown(f"{invoice['days_overdue']} days")
+            cols[4].markdown(f":{RISK_COLOR[risk['risk_tier']]}[{risk['risk_tier'].upper()}]")
+            cols[5].markdown(risk["priority"].upper())
+            if cols[6].button("Review →", key=f"select_{invoice['invoice_id']}"):
+                st.session_state["selected_invoice_id"] = invoice["invoice_id"]
+                st.rerun()
+            st.caption(risk["recommended_action"])
+            st.divider()
+        return
+
     invoices = provider.list_overdue_invoices()
     rows = [quick_risk(inv.invoice_id) for inv in invoices]
     rows.sort(key=lambda r: -r.risk.priority_score)
@@ -131,7 +152,19 @@ def render_strategy(a: Assessment) -> None:
 def render_negotiation(a: Assessment) -> None:
     st.subheader("💬 Negotiation")
     invoice_id = a.invoice.invoice_id
-    conversation: list[NegotiationTurn] = st.session_state["conversations"].setdefault(invoice_id, [])
+    provider = get_context_provider()
+    session_id = f"SESSION-{invoice_id}"
+    if settings.context_source == "api":
+        # The API is the source of truth for the transcript. Starting a session
+        # also marks the invoice as in negotiation on the backend.
+        session = provider.request("POST", f"/api/negotiate/{invoice_id}")
+        session_id = session["session_id"]
+        conversation = [
+            NegotiationTurn(speaker=turn["speaker"], message=turn["message"], timestamp=turn["timestamp"])
+            for turn in session["turns"]
+        ]
+    else:
+        conversation = st.session_state["conversations"].setdefault(invoice_id, [])
 
     if not conversation:
         opener = NegotiationTurn(
@@ -142,6 +175,11 @@ def render_negotiation(a: Assessment) -> None:
             timestamp=datetime.now(),
         )
         conversation.append(opener)
+        if settings.context_source == "api":
+            provider.request(
+                "POST", f"/api/negotiations/{session_id}/turn",
+                json={"speaker": "ai", "message": opener.message, "intent": "payment_reminder"},
+            )
 
     for turn in conversation:
         with st.chat_message("assistant" if turn.speaker == "ai" else "user"):
@@ -149,12 +187,22 @@ def render_negotiation(a: Assessment) -> None:
 
     message = st.chat_input("Type the customer's message...")
     if message:
-        conversation.append(NegotiationTurn(speaker="customer", message=message, timestamp=datetime.now()))
+        customer_turn = NegotiationTurn(speaker="customer", message=message, timestamp=datetime.now())
+        conversation.append(customer_turn)
+        if settings.context_source == "api":
+            provider.request(
+                "POST", f"/api/negotiations/{session_id}/turn",
+                json={"speaker": "customer", "message": message, "intent": "customer_message"},
+            )
         with st.spinner("AI negotiating, then policy engine validating..."):
-            outcome = negotiate_turn(a, session_id=f"SESSION-{invoice_id}", conversation=conversation, customer_message=message)
-        conversation.append(
-            NegotiationTurn(speaker="ai", message=outcome.result.proposed_next_message, timestamp=datetime.now())
-        )
+            outcome = negotiate_turn(a, session_id=session_id, conversation=conversation, customer_message=message)
+        ai_turn = NegotiationTurn(speaker="ai", message=outcome.result.proposed_next_message, timestamp=datetime.now())
+        conversation.append(ai_turn)
+        if settings.context_source == "api":
+            provider.request(
+                "POST", f"/api/negotiations/{session_id}/turn",
+                json={"speaker": "ai", "message": ai_turn.message, "intent": "negotiation_response"},
+            )
         st.session_state["last_outcome"] = outcome
         st.rerun()
 

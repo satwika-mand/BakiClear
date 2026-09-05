@@ -14,7 +14,12 @@ from datetime import date, datetime, timedelta
 from functools import lru_cache
 from typing import Protocol, runtime_checkable
 
+import httpx
+
+from ai.config import settings
 from ai.schemas import (
+    ActionProposal,
+    ActionType,
     AuditLogEntry,
     GuardrailDecision,
     GuardrailVerdict,
@@ -122,8 +127,134 @@ class MockActionExecutor:
         )
 
 
+class BackendActionExecutor:
+    """Persists all negotiation outcomes through the FastAPI backend."""
+
+    def __init__(self, base_url: str | None = None) -> None:
+        self.base_url = (base_url or settings.backend_base_url).rstrip("/")
+
+    def _request(self, method: str, path: str, **kwargs):
+        try:
+            response = httpx.request(method, f"{self.base_url}{path}", timeout=15.0, **kwargs)
+            response.raise_for_status()
+            return response.json()
+        except httpx.HTTPError as exc:
+            raise RuntimeError(f"BakiClear API request failed: {method} {path}") from exc
+
+    @staticmethod
+    def _to_promise(payload: dict, reason: str = "Recorded by backend") -> PromiseToPay:
+        return PromiseToPay(
+            promise_id=payload["promise_id"],
+            invoice_id=payload["invoice_id"],
+            customer_id=payload["customer_id"],
+            amount=payload["amount"],
+            due_date=payload["promised_date"],
+            status=PromiseStatus(payload["status"]),
+            created_at=payload["created_at"],
+            guardrail_decision_reason=reason,
+        )
+
+    def execute(self, decision: GuardrailDecision, invoice: Invoice) -> PromiseToPay | None:
+        effective = decision.modified_proposal or decision.original_proposal
+        decision_map = {
+            GuardrailVerdict.ALLOW: "approved",
+            GuardrailVerdict.MODIFY: "approved",
+            GuardrailVerdict.REJECT: "rejected",
+            GuardrailVerdict.HUMAN_APPROVAL: "escalated",
+        }
+        requested = decision.original_proposal
+        self._request(
+            "POST",
+            "/api/actions",
+            json={
+                "invoice_id": invoice.invoice_id,
+                "action_type": effective.action_type.value,
+                "decision": decision_map[decision.verdict],
+                "reason": decision.reason,
+                "actor": "policy_engine",
+                "requested_value": f"{requested.proposed_discount_pct}% discount / {requested.proposed_extension_days}d extension",
+                "approved_value": (
+                    f"{effective.proposed_discount_pct}% discount / {effective.proposed_extension_days}d extension"
+                    if decision.verdict in {GuardrailVerdict.ALLOW, GuardrailVerdict.MODIFY}
+                    else None
+                ),
+                "idempotency_key": f"{invoice.invoice_id}:{effective.action_type.value}:{uuid.uuid4().hex}",
+            },
+        )
+        if decision.verdict in {GuardrailVerdict.REJECT, GuardrailVerdict.HUMAN_APPROVAL}:
+            return None
+
+        amount = effective.proposed_amount
+        if amount is None:
+            amount = invoice.amount_due * (1 - effective.proposed_discount_pct / 100)
+        promised_date = max(invoice.due_date, date.today()) + timedelta(
+            days=effective.proposed_extension_days
+        )
+        payload = self._request(
+            "POST",
+            "/api/promises",
+            json={
+                "invoice_id": invoice.invoice_id,
+                "customer_id": invoice.customer_id,
+                "amount": round(amount, 2),
+                "promised_date": promised_date.isoformat(),
+            },
+        )
+        return self._to_promise(payload, decision.reason)
+
+    def mark_promise_status(self, promise_id: str, status: PromiseStatus) -> None:
+        if status == PromiseStatus.KEPT:
+            self._request("POST", f"/api/promises/{promise_id}/mark-paid", json={})
+        elif status == PromiseStatus.BROKEN:
+            self._request("PATCH", f"/api/promises/{promise_id}/status", params={"status_value": "broken"})
+        else:
+            self._request("PATCH", f"/api/promises/{promise_id}/status", params={"status_value": status.value})
+
+    def list_promises(self) -> list[PromiseToPay]:
+        return [self._to_promise(row) for row in self._request("GET", "/api/promises")]
+
+    @staticmethod
+    def _audit_entry(row: dict) -> AuditLogEntry:
+        verdict = {
+            "approved": GuardrailVerdict.ALLOW,
+            "rejected": GuardrailVerdict.REJECT,
+            "escalated": GuardrailVerdict.HUMAN_APPROVAL,
+        }[row["decision"]]
+        proposal = ActionProposal(
+            invoice_id=row["invoice_id"], customer_id="database", action_type=ActionType.RECORD_PROMISE,
+            source_agent="policy_engine", rationale=row["reason"],
+        )
+        return AuditLogEntry(timestamp=row["timestamp"], decision=GuardrailDecision(
+            verdict=verdict, original_proposal=proposal, reason=row["reason"]
+        ))
+
+    def list_audit_log(self) -> list[AuditLogEntry]:
+        return [self._audit_entry(row) for row in self._request("GET", "/api/actions")]
+
+    def list_pending_approvals(self) -> list[GuardrailDecision]:
+        return [entry.decision for entry in self.list_audit_log() if entry.decision.verdict == GuardrailVerdict.HUMAN_APPROVAL]
+
+    def compute_metrics(self) -> MetricsSummary:
+        summary = self._request("GET", "/api/metrics/summary")
+        promises = self._request("GET", "/api/promises")
+        resolved = [p for p in promises if p["status"] in {"kept", "broken"}]
+        kept = sum(p["status"] == "kept" for p in resolved)
+        return MetricsSummary(
+            total_invoices_processed=summary["total_invoices_count"],
+            total_amount_due=summary["total_overdue_amount"],
+            total_amount_promised=round(sum(p["amount"] for p in promises), 2),
+            recovery_rate_pct=summary["recovery_rate_percent"],
+            promise_keeping_rate_pct=round(kept / len(resolved) * 100, 1) if resolved else 0.0,
+            human_escalations=summary["human_escalations_count"],
+            guardrail_rejections=summary["guardrail_blocks_count"],
+            guardrail_modifications=0,
+        )
+
+
 @lru_cache
 def get_action_executor() -> ActionExecutor:
     """Singleton for the process — every screen in one Streamlit session shares
     the same in-memory store so Outcome/Metrics reflect what Negotiation did."""
+    if settings.context_source == "api":
+        return BackendActionExecutor()
     return MockActionExecutor()

@@ -70,7 +70,6 @@ def seed_policy_configs(db: Session) -> None:
     ]
     for policy in default_policies:
         db.merge(policy)
-    db.commit()
 
 
 def seed_database(db: Session, reset: bool = True) -> dict:
@@ -138,8 +137,6 @@ def seed_database(db: Session, reset: bool = True) -> dict:
         )
         customers.append(cust)
         db.add(cust)
-
-    db.commit()
 
     # 3. Seed 300 Invoices
     # Distribute 300 invoices across the 200 customers.
@@ -220,8 +217,6 @@ def seed_database(db: Session, reset: bool = True) -> dict:
         invoices.append(inv)
         db.add(inv)
 
-    db.commit()
-
     # 4. Seed Payment History (600+ records)
     # Giving each customer 2 to 5 historical payment records to form behavioral tracks
     history_records: list[PaymentHistory] = []
@@ -266,8 +261,6 @@ def seed_database(db: Session, reset: bool = True) -> dict:
             history_records.append(ph)
             db.add(ph)
 
-    db.commit()
-
     # 5. Seed Promises to Pay (30 sample promises)
     sample_promises: list[PromiseToPay] = []
     overdue_invoices = [inv for inv in invoices if inv.status == "overdue"]
@@ -287,9 +280,8 @@ def seed_database(db: Session, reset: bool = True) -> dict:
         sample_promises.append(p)
         db.add(p)
 
-    db.commit()
-
     # 6. Seed Sample Negotiation Sessions, Turns & Action Logs for demo richness
+    customer_segments = {customer.customer_id: customer.segment for customer in customers}
     for i in range(5):
         inv = overdue_invoices[i]
         ses_id = f"SES_{1001 + i}"
@@ -325,9 +317,9 @@ def seed_database(db: Session, reset: bool = True) -> dict:
             invoice_id=inv.invoice_id,
             action_type="discount_offer",
             requested_value="5%",
-            approved_value="2%" if inv.customer.segment in ["gold", "standard"] else "0%",
-            decision="approved" if inv.customer.segment in ["gold", "standard"] else "rejected",
-            reason=f"Policy bounded for segment {inv.customer.segment}",
+            approved_value="2%" if customer_segments[inv.customer_id] in ["gold", "standard"] else "0%",
+            decision="approved" if customer_segments[inv.customer_id] in ["gold", "standard"] else "rejected",
+            reason=f"Policy bounded for segment {customer_segments[inv.customer_id]}",
             actor="policy_engine",
             idempotency_key=f"{inv.invoice_id}:discount_offer:{today.isoformat()}",
             timestamp=datetime.now(),

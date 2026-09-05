@@ -11,11 +11,10 @@ from ai.orchestration.mock_provider import MockContextProvider
 
 @lru_cache
 def get_context_provider() -> ContextProvider:
-    if settings.context_source == "mock":
-        return MockContextProvider()
-    raise NotImplementedError(
-        "CONTEXT_SOURCE=api is wired up in Phase 5, once Person 1's endpoints are live."
-    )
+    if settings.context_source == "api":
+        from ai.orchestration.backend_provider import BackendContextProvider
+        return BackendContextProvider()
+    return MockContextProvider()
 
 
 __all__ = ["ContextProvider", "get_context_provider"]

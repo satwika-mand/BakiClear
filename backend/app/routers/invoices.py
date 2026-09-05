@@ -10,6 +10,7 @@ from backend.app.models.customer import Customer
 from backend.app.models.invoice import Invoice
 from backend.app.schemas.invoice import InvoiceDetailResponse
 from backend.app.seed import seed_database
+from backend.app.services.analytics import calculate_payment_metrics, calculate_risk_priority
 
 router = APIRouter(prefix="/api/invoices", tags=["Invoices"])
 
@@ -61,6 +62,55 @@ def list_invoices(
             )
         )
     return results
+
+
+@router.get("/queue")
+def get_collection_queue(db: Session = Depends(get_db)):
+    """Return the collection queue with customer behavior and risk in one API call.
+
+    This endpoint deliberately prevents the dashboard from making one customer,
+    history, and promise request for every displayed invoice.
+    """
+    stmt = (
+        select(Invoice)
+        .join(Customer, Invoice.customer_id == Customer.customer_id)
+        .where(Invoice.status.in_(["overdue", "in_negotiation"]))
+        .options(
+            joinedload(Invoice.customer).selectinload(Customer.payment_records),
+            joinedload(Invoice.customer).selectinload(Customer.promises),
+        )
+        .order_by(Invoice.days_overdue.desc(), Invoice.amount.desc())
+    )
+    invoices = db.scalars(stmt).all()
+    queue = []
+    for invoice in invoices:
+        customer = invoice.customer
+        payment_metrics = calculate_payment_metrics(customer.payment_records, customer.promises)
+        risk = calculate_risk_priority(customer, invoice, payment_metrics)
+        queue.append(
+            {
+                "invoice": {
+                    "invoice_id": invoice.invoice_id,
+                    "customer_id": invoice.customer_id,
+                    "amount": invoice.amount,
+                    "due_date": invoice.due_date.isoformat(),
+                    "days_overdue": invoice.days_overdue,
+                    "status": invoice.status,
+                },
+                "customer": {
+                    "customer_id": customer.customer_id,
+                    "name": customer.name,
+                    "segment": customer.segment,
+                },
+                "risk": risk,
+            }
+        )
+    priority_rank = {"high": 3, "medium": 2, "low": 1}
+    return sorted(
+        queue,
+        key=lambda item: (priority_rank[item["risk"]["priority"]], item["risk"]["risk_score"]),
+        reverse=True,
+    )
 
 
 @router.get("/{invoice_id}", response_model=InvoiceDetailResponse)

@@ -103,3 +103,18 @@ def mark_promise_paid(
     db.commit()
     db.refresh(promise)
     return promise
+
+
+@router.patch("/{promise_id}/status", response_model=PromiseResponse)
+def update_promise_status(promise_id: str, status_value: str, db: Session = Depends(get_db)):
+    """Update a promise outcome for the collections dashboard."""
+    if status_value not in {"pending", "kept", "broken"}:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Invalid promise status.")
+    promise = db.get(PromiseToPay, promise_id)
+    if not promise:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Promise '{promise_id}' not found.")
+    promise.status = status_value
+    promise.updated_at = datetime.now()
+    db.commit()
+    db.refresh(promise)
+    return promise
