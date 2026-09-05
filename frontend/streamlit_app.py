@@ -19,15 +19,10 @@ from ai.agents.message import draft_message
 from ai.agents.risk_engine import compute_payment_behavior
 from ai.config import settings
 from ai.evaluate import (
-<<<<<<< HEAD
     compute_action_log_metrics,
     fetch_recovery_metrics,
     run_guardrail_boundary_test,
     run_message_safety_redteam,
-=======
-    calculate_guardrail_metrics,
-    calculate_recovery_metrics,
->>>>>>> b564885 (backend new logics)
 )
 from ai.orchestration import get_context_provider
 from ai.orchestration.pipeline import Assessment, assess_invoice, negotiate_turn, quick_risk
@@ -366,14 +361,6 @@ def render_automated_inbox() -> None:
     st.subheader("📬 Automated Inbox")
     st.caption("Scheduled & sent reminder messages. Click to open full conversation.")
 
-<<<<<<< HEAD
-    entries = _cached_inbox_entries()
-    if not entries:
-        st.info("No overdue invoices.")
-        return
-
-    for customer, inv, message in entries:
-=======
     provider = get_context_provider()
     if settings.context_source == "api":
         messages = provider.request("GET", "/api/messages")[:10]
@@ -392,16 +379,12 @@ def render_automated_inbox() -> None:
             st.divider()
         return
 
-    invoices = provider.list_overdue_invoices()[:10]  # Show first 10
-
-    if not invoices:
+    entries = _cached_inbox_entries()
+    if not entries:
         st.info("No overdue invoices.")
         return
 
-    for inv in invoices:
-        customer = provider.get_customer(inv.customer_id)
-
->>>>>>> b564885 (backend new logics)
+    for customer, inv, message in entries:
         cols = st.columns([2, 3, 3, 1])
         cols[0].markdown(f"**{customer.name}**")
         cols[1].markdown(f"`{inv.invoice_id}`")
@@ -443,9 +426,6 @@ def render_human_collection_queue() -> None:
     st.subheader("👤 Human Collection Queue")
     st.caption("Cases escalated by the guardrail. Click 'Review' to see full conversation & context.")
 
-<<<<<<< HEAD
-    escalated = _cached_escalated_rows()
-=======
     provider = get_context_provider()
     if settings.context_source == "api":
         tasks = provider.request("GET", "/api/human-tasks")
@@ -464,14 +444,7 @@ def render_human_collection_queue() -> None:
                     st.rerun()
         return
 
-    invoices = provider.list_overdue_invoices()
-
-    escalated = []
-    for inv in invoices:
-        if inv.days_overdue >= 15:  # Simulate escalation criteria
-            customer = provider.get_customer(inv.customer_id)
-            escalated.append((customer, inv))
->>>>>>> b564885 (backend new logics)
+    escalated = _cached_escalated_rows()
 
     if not escalated:
         st.success("✅ No escalations pending.")
