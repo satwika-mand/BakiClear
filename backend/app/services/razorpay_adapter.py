@@ -1,6 +1,7 @@
 """Razorpay Adapter with clean Mock fallback for hackathon reliability."""
 
 import uuid
+from decimal import ROUND_HALF_UP, Decimal
 from typing import Any
 
 from backend.app.config import settings
@@ -71,17 +72,27 @@ class RazorpayAdapter:
                 "is_mock": True,
             }
 
-        # If live credentials are provided, Razorpay API can be called here via httpx/sdk.
-        # Fallback to mock for seamless hackathon demo.
-        return {
-            "id": f"plink_live_{uuid.uuid4().hex[:12]}",
-            "invoice_id": invoice_id,
-            "amount": amount,
-            "currency": "INR",
-            "status": "created",
-            "short_url": f"https://rzp.io/i/live_{uuid.uuid4().hex[:8]}",
-            "is_mock": False,
-        }
+        import razorpay
+
+        amount_paise = int(
+            (Decimal(str(amount)) * 100).quantize(Decimal(1), rounding=ROUND_HALF_UP)
+        )
+        link = razorpay.Client(auth=(self.key_id, self.key_secret)).payment_link.create(
+            data={
+                "amount": amount_paise,
+                "currency": "INR",
+                "reference_id": invoice_id,
+                "description": description,
+                "customer": {
+                    "name": customer_name,
+                    "email": customer_email,
+                    "contact": customer_phone,
+                },
+                "notify": {"sms": False, "email": False},
+                "reminder_enable": False,
+            }
+        )
+        return {**link, "is_mock": False}
 
     def verify_payment(self, payment_link_id: str) -> dict[str, Any]:
         """Check status of a payment link."""

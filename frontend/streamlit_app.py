@@ -283,9 +283,27 @@ def render_negotiation(a: Assessment) -> None:
 
                 c_pay, c_ask, c_dispute = st.columns(3)
                 if c_pay.button("💳 Pay Now", key=f"pay_{invoice_id}"):
-                    st.info(f"💳 Opening Razorpay checkout for ₹{approved_amount:,.0f}...")
-                    # In real app: call POST /api/payments/create-link and render Razorpay
-                    st.success("✅ Payment link sent to customer")
+                    if settings.context_source != "api":
+                        st.info("Switch CONTEXT_SOURCE to 'api' to generate a payment link.")
+                    else:
+                        try:
+                            payment_link = provider.request(
+                                "POST",
+                                "/api/payments/create-link",
+                                json={"invoice_id": invoice_id},
+                            )
+                            st.session_state.setdefault("payment_links", {})[invoice_id] = payment_link
+                        except RuntimeError as exc:
+                            st.error(f"Could not create a payment link: {exc}")
+
+                payment_link = st.session_state.get("payment_links", {}).get(invoice_id)
+                if payment_link:
+                    st.success("✅ Payment link created")
+                    st.link_button("Open Razorpay payment page", payment_link["short_url"])
+                    st.caption(
+                        f"₹{payment_link['amount']:,.0f} · "
+                        f"{'mock link' if payment_link.get('is_mock') else 'Razorpay Test Mode'}"
+                    )
 
                 if c_ask.button("❓ Ask Question", key=f"ask_{invoice_id}"):
                     st.info("Chat continues below...")
