@@ -1,3 +1,4 @@
+#DO NOT RUN AGAINST THE DEMO DATABASE
 """Automated Backend Pytest Suite for BakiClear P0 and P1 endpoints."""
 
 import pytest

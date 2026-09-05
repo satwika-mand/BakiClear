@@ -138,8 +138,13 @@ class BackendContextProvider:
         return self._invoice(self.request("GET", f"/api/invoices/{invoice_id}"))
 
     def list_overdue_invoices(self) -> list[Invoice]:
-        payload = self.request("GET", "/api/invoices", params={"status": "overdue", "limit": 500})
-        invoices = [self._invoice(invoice) for invoice in payload]
+        """Shares its source of truth with get_collection_queue() rather than
+        querying /api/invoices?status=overdue directly — that endpoint filters
+        on exact status equality and would silently drop any invoice that has
+        already moved to "in_negotiation", which /queue correctly still
+        counts as active/overdue. Two different definitions of "overdue" for
+        the same data would be its own bug."""
+        invoices = [self._invoice(row["invoice"]) for row in self.get_collection_queue()]
         self._invoices.update({invoice.invoice_id: invoice for invoice in invoices})
         return invoices
 
