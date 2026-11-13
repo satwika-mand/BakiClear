@@ -1,7 +1,5 @@
 <!-- # BakiClear
 
-**AI-Powered Collections Strategy & Negotiation** — Razorpay AI Buildathon 2026.
-
 > BakiClear doesn't just remind customers to pay. It decides *how* each overdue
 > payment should be recovered, negotiates within merchant-defined limits, and
 > turns commitments into tracked payments.
@@ -45,8 +43,7 @@ Run anything with `uv run <cmd>` (no manual venv activation needed).
 
 ## License & Usage
 
-BakiClear is an independent prototype developed for the Razorpay AI
-Buildathon 2026.
+BakiClear is an independent prototype developed. 
 
 This repository is publicly available for hackathon evaluation, review,
 demonstration, and educational reference.
@@ -57,6 +54,3 @@ permission from the copyright holders.
 
 See [LICENSE.md](LICENSE.md) for complete terms.
 
-BakiClear is not an official Razorpay product. Razorpay trademarks,
-services, APIs, SDKs, and other intellectual property remain the property
-of their respective owners.
